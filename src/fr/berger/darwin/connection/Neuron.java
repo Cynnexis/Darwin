@@ -12,11 +12,19 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Objects;
+import java.util.UUID;
 
 public class Neuron extends EnhancedObservable implements Serializable, Cloneable {
 	
 	/* PROPERTIES */
+	
+	/**
+	 * Unique identifier for the neuron
+	 */
+	@NotNull
+	protected UUID id;
 	
 	/**
 	 * List containing all the inputs of the neuron
@@ -65,6 +73,9 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 	}
 	
 	protected void initialize(int numberOfInputs, @Nullable ArrayList<Double> inputs, @Nullable ArrayList<Double> weights, double bias, @Nullable ActivationHandler activationHandler) {
+		// Setting the identifier
+		setId(UUID.randomUUID());
+		
 		// Setting the number of inputs
 		if (numberOfInputs < 0)
 			numberOfInputs = 0;
@@ -117,7 +128,7 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 	
 	/* NEURON METHODS */
 	
-	public double activate(@NotNull ArrayList<Double> inputs, @Positive double bias) {
+	public double sum(@NotNull ArrayList<Double> inputs, @Positive double bias) {
 		// Check the inputs argument
 		if (inputs == null)
 			throw new NullPointerException("The argument cannot be null.");
@@ -141,25 +152,57 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 		// Compute the sum of all inputs according to their weight
 		double outputBeforeActivation = 0.0d;
 		
-		for (int i = 0; i < inputs.size(); i++) {
+		for (int i = 0; i < inputs.size(); i++)
 			outputBeforeActivation += inputs.get(i) * getWeights().get(i);
-		}
 		
 		// Add the bias (and its weight)
 		outputBeforeActivation += bias * getWeights().get(getWeights().size() - 1);
 		
-		// Finally, call the activation handler
-		return getActivationHandler().activate(outputBeforeActivation);
+		return outputBeforeActivation;
+	}
+	public double sum(@NotNull ArrayList<Double> inputs) {
+		return sum(inputs, getBias());
+	}
+	public double sum(@Positive double bias) {
+		return sum(getInputs(), bias);
+	}
+	public double sum() {
+		return sum(getInputs(), getBias());
+	}
+	
+	public double activate(@NotNull ArrayList<Double> inputs, @Positive double bias) {
+		return getActivationHandler().activate(sum(inputs, bias));
 	}
 	public double activate(@NotNull ArrayList<Double> inputs) {
 		return activate(inputs, getBias());
+	}
+	public double activate(@Positive double bias) {
+		return activate(getInputs(), bias);
 	}
 	public double activate() {
 		return activate(getInputs(), getBias());
 	}
 	
 	/* GETTERS & SETTERS */
-
+	
+	@NotNull
+	public UUID getId() {
+		if (id == null) {
+			id = UUID.randomUUID();
+			snap(id);
+		}
+		
+		return id;
+	}
+	
+	public void setId(@NotNull UUID id) {
+		if (id == null)
+			throw new NullPointerException();
+		
+		this.id = id;
+		snap(this.id);
+	}
+	
 	@NotNull
 	public ArrayList<Double> getInputs() {
 		if (inputs == null) {
@@ -177,6 +220,13 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 		this.inputs = inputs;
 		snap(this.inputs);
 	}
+	public void setInputs(double... inputs) {
+		ArrayList<Double> list = new ArrayList<>();
+		for (double input : inputs)
+			list.add(input);
+		
+		setInputs(list);
+	}
 
 	public ArrayList<Double> getWeights() {
 		if (weights == null) {
@@ -193,6 +243,13 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 		
 		this.weights = weights;
 		snap(this.weights);
+	}
+	public void setWeights(double... weights) {
+		ArrayList<Double> list = new ArrayList<>();
+		for (double input : weights)
+			list.add(input);
+		
+		setWeights(list);
 	}
 	
 	@Positive
@@ -234,6 +291,7 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 	/* SERIALIZATION METHODS */
 	
 	private void writeObject(@NotNull ObjectOutputStream stream) throws IOException {
+		stream.writeObject(getId());
 		stream.writeObject(getInputs());
 		stream.writeObject(getWeights());
 		stream.writeDouble(getBias());
@@ -242,6 +300,7 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 	
 	@SuppressWarnings("unchecked")
 	private void readObject(@NotNull ObjectInputStream stream) throws IOException, ClassNotFoundException {
+		setId((UUID) stream.readObject());
 		setInputs((ArrayList<Double>) stream.readObject());
 		setWeights((ArrayList<Double>) stream.readObject());
 		setBias(stream.readDouble());
@@ -256,6 +315,7 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 		if (!(o instanceof Neuron)) return false;
 		Neuron neuron = (Neuron) o;
 		return Double.compare(neuron.getBias(), getBias()) == 0 &&
+				Objects.equals(getId(), neuron.getId()) &&
 				Objects.equals(getInputs(), neuron.getInputs()) &&
 				Objects.equals(getWeights(), neuron.getWeights()) &&
 				Objects.equals(getActivationHandler(), neuron.getActivationHandler());
@@ -263,13 +323,14 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 	
 	@Override
 	public int hashCode() {
-		return Objects.hash(getInputs(), getWeights(), getBias(), getActivationHandler());
+		return Objects.hash(getId(), getInputs(), getWeights(), getBias(), getActivationHandler());
 	}
 	
 	@Override
 	public String toString() {
 		return "Neuron{" +
-				"inputs=" + inputs +
+				"id=" + id +
+				", inputs=" + inputs +
 				", weights=" + weights +
 				", bias=" + bias +
 				", activationHandler=" + activationHandler +

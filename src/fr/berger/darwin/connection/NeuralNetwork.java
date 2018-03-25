@@ -1,6 +1,8 @@
 package fr.berger.darwin.connection;
 
 import fr.berger.beyondcode.annotations.Positive;
+import fr.berger.beyondcode.util.EnhancedObservable;
+import fr.berger.darwin.connection.handlers.ActivationHandler;
 import fr.berger.darwin.connection.neurallayers.HiddenLayer;
 import fr.berger.darwin.connection.neurallayers.InputLayer;
 import fr.berger.darwin.connection.neurallayers.OutputLayer;
@@ -9,9 +11,10 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Objects;
 
-public class NeuralNetwork implements Serializable, Cloneable {
+public class NeuralNetwork extends EnhancedObservable implements Serializable, Cloneable {
 	
 	/* PROPERTIES */
 	
@@ -24,9 +27,29 @@ public class NeuralNetwork implements Serializable, Cloneable {
 	
 	/* CONSTRUCTORS & INITIALIZING METHODS */
 	
-	public NeuralNetwork(@Positive int defaultNumberOfInputs, @NotNull ArrayList<Integer>) {
-		setInputLayer(new InputLayer(defaultNumberOfInputs));
-		setHiddenLayers(new HiddenLayer());
+	public NeuralNetwork(@NotNull InputLayer inputLayer, @NotNull OutputLayer outputLayer, @Nullable ArrayList<HiddenLayer> hiddenLayers) {
+		setInputLayer(inputLayer);
+		setHiddenLayers(hiddenLayers);
+		setOutputLayer(outputLayer);
+	}
+	public NeuralNetwork(@NotNull InputLayer inputLayer, @NotNull OutputLayer outputLayer, @Nullable HiddenLayer... hiddenLayers) {
+		ArrayList<HiddenLayer> list = new ArrayList<>();
+		list.addAll(Arrays.asList(hiddenLayers));
+		
+		setInputLayer(inputLayer);
+		setHiddenLayers(list);
+		setOutputLayer(outputLayer);
+	}
+	public NeuralNetwork(@Positive int numberOfInputs, @Positive int numberOfNeuronsPerHiddenLayer, @NotNull ArrayList<ActivationHandler> hiddenActivationHandlers, @Positive int numberOfNeuronsPerOutputLayer, @NotNull ActivationHandler outputActivationHandler) {
+		setInputLayer(new InputLayer(numberOfInputs));
+		
+		ArrayList<HiddenLayer> hiddenLayers = new ArrayList<>();
+		for (ActivationHandler ah : hiddenActivationHandlers) {
+			hiddenLayers.add(new HiddenLayer(numberOfNeuronsPerHiddenLayer, numberOfInputs, ah));
+		}
+		setHiddenLayers(hiddenLayers);
+		
+		setOutputLayer(new OutputLayer(numberOfNeuronsPerHiddenLayer, numberOfNeuronsPerOutputLayer, outputActivationHandler));
 	}
 	
 	/* NEURAL NETWORK METHODS */
@@ -48,8 +71,10 @@ public class NeuralNetwork implements Serializable, Cloneable {
 	
 	@NotNull
 	public InputLayer getInputLayer() {
-		if (inputLayer == null)
+		if (inputLayer == null) {
 			inputLayer = new InputLayer();
+			snap(inputLayer);
+		}
 		
 		return inputLayer;
 	}
@@ -59,10 +84,16 @@ public class NeuralNetwork implements Serializable, Cloneable {
 			throw new NullPointerException();
 		
 		this.inputLayer = inputLayer;
+		snap(this.inputLayer);
 	}
 	
 	@NotNull
 	public ArrayList<HiddenLayer> getHiddenLayers() {
+		if (hiddenLayers == null) {
+			hiddenLayers = new ArrayList<>();
+			snap(hiddenLayers);
+		}
+		
 		return hiddenLayers;
 	}
 	
@@ -75,12 +106,16 @@ public class NeuralNetwork implements Serializable, Cloneable {
 		}
 		else
 			this.hiddenLayers = new ArrayList<>();
+		
+		snap(this.hiddenLayers);
 	}
 	
 	@NotNull
 	public OutputLayer getOutputLayer() {
-		if (outputLayer == null)
+		if (outputLayer == null) {
 			outputLayer = new OutputLayer();
+			snap(outputLayer);
+		}
 		
 		return outputLayer;
 	}
@@ -90,6 +125,8 @@ public class NeuralNetwork implements Serializable, Cloneable {
 			throw new NullPointerException();
 		
 		this.outputLayer = outputLayer;
+		
+		snap(this.outputLayer);
 	}
 	
 	/* OVERRIDES */

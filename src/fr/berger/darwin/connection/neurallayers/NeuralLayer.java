@@ -5,6 +5,7 @@ import fr.berger.beyondcode.util.EnhancedObservable;
 import fr.berger.darwin.connection.Neuron;
 import fr.berger.darwin.connection.handlers.ActivationHandler;
 import fr.berger.enhancedlist.lexicon.Lexicon;
+import fr.berger.enhancedlist.lexicon.eventhandlers.AddHandler;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.Serializable;
@@ -66,6 +67,15 @@ public class NeuralLayer extends EnhancedObservable implements Serializable, Clo
 	protected void initializeLexicon(@Positive int defaultNumberOfNeurons) {
 		setNeurons(new Lexicon<>(Neuron.class, defaultNumberOfNeurons));
 		getNeurons().setAcceptNullValues(false);
+		getNeurons().addAddHandler(new AddHandler<Neuron>() {
+			@Override
+			public void onElementAdded(int index, Neuron neuron) {
+				for (int i = 0; i < getNeurons().size(); i++) {
+					if (index != i && getNeurons().get(i).getId().equals(neuron.getId()))
+						throw new IllegalArgumentException("Two neurons cannot have the same ID (Neuron n°" + index + "\": " + neuron.toString()  + "\" ; Neuron n°" + i + ": \"" + getNeurons().get(i) + "\").");
+				}
+			}
+		});
 		getNeurons().addObserver((observable, o) -> snap(o));
 	}
 	protected void initializeLexicon() {
