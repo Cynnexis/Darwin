@@ -2,15 +2,17 @@ package fr.berger.darwin.remixed;
 
 import com.sun.istack.internal.NotNull;
 import com.sun.istack.internal.Nullable;
+import fr.berger.beyondcode.util.EnhancedObservable;
 import fr.berger.darwin.remixed.listeners.IndividualsListener;
 import fr.berger.darwin.remixed.annotations.Range;
+import fr.berger.enhancedlist.lexicon.Lexicon;
 
 import java.io.Serializable;
 import java.util.*;
 
-public class Population<T> implements Serializable, Sortable, Iterable<Individual<T>> {
+public class Population<T> extends EnhancedObservable implements Serializable, Cloneable, Iterable<Individual<T>> {
 
-	private ArrayList<Individual<T>> individuals;
+	private Lexicon<Individual<T>> individuals;
 	private long size;
 	private long maxGeneration;
 	@Range(a = 0, b = 1)
@@ -48,9 +50,9 @@ public class Population<T> implements Serializable, Sortable, Iterable<Individua
 	}
 	
 	private void initialize(@Nullable ArrayList<Individual<T>> individuals, long size, long maxGeneration, float elitismRate, float mutationRate, float crossoverRate, @NotNull Mutable<T> mutationAction) {
-		ListUtility.deleteNullItems(individuals);
+		Lexicon<Individual<T>> lexicon = new Lexicon<>(individuals);
 		
-		setIndividuals(individuals != null ? individuals : new ArrayList<>());
+		setIndividuals(lexicon);
 		setSize(size);
 		setMaxGeneration(maxGeneration);
 		setElitismRate(elitismRate);
@@ -58,23 +60,19 @@ public class Population<T> implements Serializable, Sortable, Iterable<Individua
 		setCrossoverRate(crossoverRate);
 		setMutationAction(mutationAction);
 		
-		for (int i = getIndividuals().size(); i < getSize(); i++) {
-			getIndividuals().add(getMutationAction().generateRandom());
-		}
-		
-		sort();
+		for (int i = getIndividuals().size(); i < getSize(); i++)
+			addIndividuals(getMutationAction().generateRandom());
 	}
 	
 	public void evolve() {
 		// Create a buffer
 		ArrayList<Individual<T>> buffer = new ArrayList<>(getIndividuals().size());
 		
-		sort();
+		//sort();
 		int i = Math.round(getIndividuals().size() * getElitismRate());
 		
-		for (int k = 0; k < i; k++) {
-			buffer.add(getIndividuals().get(k));
-		}
+		for (int k = 0; k < i; k++)
+			buffer.add(getIndividual(k));
 		
 		Random rand = new Random(System.currentTimeMillis());
 		
@@ -135,6 +133,7 @@ public class Population<T> implements Serializable, Sortable, Iterable<Individua
 		return parents;
 	}
 	
+	/*
 	@Override
 	public void sort() {
 		getIndividuals().sort(new Comparator<Individual<T>>() {
@@ -159,30 +158,38 @@ public class Population<T> implements Serializable, Sortable, Iterable<Individua
 					return -1;
 				
 				return o1.compareTo(o2);
-				
 			}
 		});
-	}
+	}*/
 	
 	/* GETTER & SETTER */
 	
-	public @NotNull ArrayList<Individual<T>> getIndividuals() {
-		if (this.individuals == null)
-			this.individuals = new ArrayList<>();
+	@NotNull
+	public Lexicon<Individual<T>> getIndividuals() {
+		if (individuals == null)
+			setIndividuals(new Lexicon<>());
 		
-		return this.individuals;
+		return individuals;
 	}
 	
-	public void setIndividuals(@NotNull ArrayList<Individual<T>> individuals) {
+	public void setIndividuals(@NotNull Lexicon<Individual<T>> individuals) {
 		if (individuals == null)
 			throw new NullPointerException();
 		
-		for (Individual<T> individual : individuals)
-			if (individual == null)
-				throw new NullPointerException();
-		
 		this.individuals = individuals;
-		sort();
+		this.individuals.deleteNullElement();
+		this.individuals.setAcceptNullValues(false);
+		this.individuals.addObserver(((observable, o) -> {
+			snap(o);
+		}));
+	}
+	
+	@SafeVarargs
+	public final void addIndividuals(@NotNull Individual<T>... individuals) {
+		if (individuals == null)
+			throw new NullPointerException();
+		
+		getIndividuals().addAll(Arrays.asList(individuals));
 	}
 	
 	public long getSize() {
@@ -234,7 +241,7 @@ public class Population<T> implements Serializable, Sortable, Iterable<Individua
 		if (this.mutationAction == null)
 			this.mutationAction = new Mutable<T>() {
 				@Override
-				public int calculateFitness(Chromosome<T> chromosome) {
+				public double calculateFitness(@org.jetbrains.annotations.NotNull Individual<T> individual) {
 					return 0;
 				}
 				
@@ -292,19 +299,6 @@ public class Population<T> implements Serializable, Sortable, Iterable<Individua
 	/* OVERRIDES */
 	
 	@Override
-	public String toString() {
-		return "Population{" +
-				"individuals=" + individuals +
-				", size=" + size +
-				", maxGeneration=" + maxGeneration +
-				", elitismRate=" + elitismRate +
-				", mutationRate=" + mutationRate +
-				", crossoverRate=" + crossoverRate +
-				", mutationAction=" + mutationAction +
-				'}';
-	}
-	
-	@Override
 	public Iterator<Individual<T>> iterator() {
 		return new Iterator<Individual<T>>() {
 			
@@ -339,5 +333,18 @@ public class Population<T> implements Serializable, Sortable, Iterable<Individua
 	@Override
 	public int hashCode() {
 		return Objects.hash(getIndividuals(), getSize(), getMaxGeneration(), getElitismRate(), getMutationRate(), getCrossoverRate(), getMutationAction());
+	}
+	
+	@Override
+	public String toString() {
+		return "Population{" +
+				"individuals=" + individuals +
+				", size=" + size +
+				", maxGeneration=" + maxGeneration +
+				", elitismRate=" + elitismRate +
+				", mutationRate=" + mutationRate +
+				", crossoverRate=" + crossoverRate +
+				", mutationAction=" + mutationAction +
+				'}';
 	}
 }

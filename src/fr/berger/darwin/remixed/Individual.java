@@ -1,83 +1,89 @@
 package fr.berger.darwin.remixed;
 
-import com.sun.istack.internal.NotNull;
-import com.sun.istack.internal.Nullable;
+import fr.berger.beyondcode.annotations.NotEmpty;
+import fr.berger.beyondcode.util.EnhancedObservable;
 import fr.berger.darwin.remixed.listeners.ChromosomesListener;
+import fr.berger.darwin.remixed.listeners.FitnessListener;
+import fr.berger.darwin.remixed.listeners.GenesListener;
+import fr.berger.enhancedlist.lexicon.Lexicon;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.Objects;
+import java.util.*;
 
-public class Individual<T> implements Serializable, Sortable, Comparable<Individual<T>>, Iterable<Chromosome<T>> {
+public class Individual<T> extends EnhancedObservable implements Serializable, Cloneable, Iterable<Chromosome<T>> {
 	
 	@NotNull
-	private ArrayList<Chromosome<T>> chromosomes = new ArrayList<>();
+	private UUID id;
+	
+	@NotNull
+	private Lexicon<Chromosome<T>> chromosomes = new Lexicon<>();
 	
 	@NotNull
 	private ArrayList<ChromosomesListener<T>> chromosomesListeners;
 	
-	public Individual(@Nullable ArrayList<Chromosome<T>> chromosomes) {
+	/*@NotNull
+	private ArrayList<FitnessListener> fitnessListeners;*/
+	
+	public Individual(@Nullable Lexicon<Chromosome<T>> chromosomes) {
 		initialize(chromosomes);
 	}
-	public Individual(@Nullable Chromosome<T> chromosome) {
-		ArrayList<Chromosome<T>> list = new ArrayList<>();
-		if (chromosome != null)
-			list.add(chromosome);
-		
-		initialize(list);
+	public Individual(@Nullable ArrayList<Chromosome<T>> chromosomes) {
+		initialize(new Lexicon<>(chromosomes));
 	}
-	public Individual(@Nullable Individual<T> copy) {
-		if (copy != null)
-			initialize(copy.getChromosomes());
-		else
-			initialize(null);
+	public Individual(@Nullable Chromosome<T>... chromosomes) {
+		initialize(new Lexicon<>(chromosomes));
+	}
+	public Individual(@NotNull Individual<T> copy) {
+		if (copy == null)
+			throw new NullPointerException();
+		
+		initialize(copy.getChromosomes());
 	}
 	public Individual() {
 		initialize(null);
 	}
 	
-	private void initialize(@Nullable ArrayList<Chromosome<T>> chromosomes) {
-		ListUtility.deleteNullItems(chromosomes);
+	private void initialize(@Nullable Lexicon<Chromosome<T>> chromosomes) {
+		// Generate random ID
+		setId(UUID.randomUUID());
 		
-		setChromosomes(chromosomes != null ? chromosomes : new ArrayList<>());
-		sort();
-	}
-	
-	@Override
-	public int compareTo(Individual<T> individual) {
-		int fitness1 = 0, fitness2 = 0;
+		if (chromosomes == null)
+			chromosomes = new Lexicon<>();
 		
-		for (Chromosome<T> c : this.getChromosomes())
-			fitness1 += c.getFitness();
-		
-		for (Chromosome<T> c : individual.getChromosomes())
-			fitness2 += c.getFitness();
-		
-		return Integer.compare(fitness1, fitness2);
-	}
-	
-	@Override
-	public void sort() {
-		getChromosomes().sort(new Comparator<Chromosome<T>>() {
-			@Override
-			public int compare(Chromosome<T> o1, Chromosome<T> o2) {
-				return o1.compareTo(o2);
-			}
-		});
+		setChromosomes(chromosomes);
+		setChromosomesListeners(new ArrayList<>());
 	}
 	
 	/* GETTER & SETTER */
 	
-	public @NotNull ArrayList<Chromosome<T>> getChromosomes() {
+	@NotNull
+	public UUID getId() {
+		if (id == null)
+			id = UUID.randomUUID();
+		
+		return id;
+	}
+	
+	public void setId(@NotNull UUID id) {
+		if (id == null)
+			throw new NullPointerException();
+		
+		this.id = id;
+	}
+	
+	public @NotNull Lexicon<Chromosome<T>> getChromosomes() {
 		if (this.chromosomes == null)
-			this.chromosomes = new ArrayList<>();
+			this.chromosomes = new Lexicon<>();
 		
 		return this.chromosomes;
 	}
 	
-	public void setChromosomes(@NotNull ArrayList<Chromosome<T>> chromosomes) {
+	public void setChromosomes(@NotNull Lexicon<Chromosome<T>> chromosomes) {
 		if (chromosomes == null)
 			throw new NullPointerException();
 		
@@ -86,7 +92,10 @@ public class Individual<T> implements Serializable, Sortable, Comparable<Individ
 				throw new NullPointerException();
 		
 		this.chromosomes = chromosomes;
-		sort();
+		
+		this.chromosomes.setAcceptNullValues(false);
+		this.chromosomes.deleteNullElement();
+		this.chromosomes.addObserver((observable, o) -> snap(o));
 		
 		for (ChromosomesListener<T> chromosomesListener : getChromosomesListeners())
 			chromosomesListener.onChromosomesChanged(this.chromosomes);
@@ -120,14 +129,48 @@ public class Individual<T> implements Serializable, Sortable, Comparable<Individ
 		getChromosomesListeners().add(chromosomesListener);
 	}
 	
-	/* OVERRIDES */
-	
-	@Override
-	public String toString() {
-		return "Individual{" +
-				"chromosomes=" + chromosomes +
-				'}';
+	/*public @NotNull ArrayList<FitnessListener> getFitnessListeners() {
+		if (this.fitnessListeners == null)
+			this.fitnessListeners = new ArrayList<>();
+		
+		return this.fitnessListeners;
 	}
+	
+	public void setFitnessListeners(ArrayList<FitnessListener> fitnessListeners) {
+		if (fitnessListeners == null)
+			throw new NullPointerException();
+		
+		for (FitnessListener fitnessListener : fitnessListeners)
+			if (fitnessListener == null)
+				throw new NullPointerException();
+		
+		this.fitnessListeners = fitnessListeners;
+	}
+	
+	public void addFitnessListener(@NotNull FitnessListener fitnessListener) {
+		if (fitnessListener == null)
+			throw new NullPointerException();
+		
+		if (getFitnessListeners() == null)
+			this.fitnessListeners = new ArrayList<>();
+		
+		getFitnessListeners().add(fitnessListener);
+	}*/
+	
+	/* SERIALIZATION METHODS */
+	
+	private void writeObject(@NotNull ObjectOutputStream stream) throws IOException {
+		stream.writeObject(getChromosomes());
+		stream.writeObject(getChromosomesListeners());
+	}
+	
+	@SuppressWarnings("unchecked")
+	private void readObject(@NotNull ObjectInputStream stream) throws IOException, ClassNotFoundException {
+		setChromosomes((Lexicon<Chromosome<T>>) stream.readObject());
+		setChromosomesListeners((ArrayList<ChromosomesListener<T>>) stream.readObject());
+	}
+	
+	/* OVERRIDES */
 	
 	@Override
 	public Iterator<Chromosome<T>> iterator() {
@@ -152,12 +195,20 @@ public class Individual<T> implements Serializable, Sortable, Comparable<Individ
 		if (this == o) return true;
 		if (!(o instanceof Individual)) return false;
 		Individual<?> that = (Individual<?>) o;
-		return Objects.equals(getChromosomes(), that.getChromosomes());
+		return Objects.equals(getId(), that.getId()) &&
+				Objects.equals(getChromosomes(), that.getChromosomes());
 	}
 	
 	@Override
 	public int hashCode() {
-		
-		return Objects.hash(getChromosomes());
+		return Objects.hash(getId(), getChromosomes());
+	}
+	
+	@Override
+	public String toString() {
+		return "Individual{" +
+				"id=" + getId().toString() +
+				", chromosomes=" + getChromosomes().toString() +
+				'}';
 	}
 }
