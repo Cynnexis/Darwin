@@ -3,9 +3,12 @@ package fr.berger.darwin.remixed;
 import com.sun.istack.internal.NotNull;
 import com.sun.istack.internal.Nullable;
 import fr.berger.beyondcode.util.EnhancedObservable;
+import fr.berger.beyondcode.util.Irregular;
 import fr.berger.darwin.remixed.listeners.IndividualsListener;
 import fr.berger.darwin.remixed.annotations.Range;
 import fr.berger.enhancedlist.lexicon.Lexicon;
+import org.junit.jupiter.api.Assertions;
+import org.opentest4j.AssertionFailedError;
 
 import java.io.Serializable;
 import java.util.*;
@@ -68,38 +71,42 @@ public class Population<T> extends EnhancedObservable implements Serializable, C
 		// Create a buffer
 		ArrayList<Individual<T>> buffer = new ArrayList<>(getIndividuals().size());
 		
-		//sort();
-		int i = Math.round(getIndividuals().size() * getElitismRate());
+		evaluate();
+		sort();
+		int pivot = Math.round(getIndividuals().size() * getElitismRate());
 		
-		for (int k = 0; k < i; k++)
-			buffer.add(getIndividual(k));
+		for (int i = 0; i < pivot; i++)
+			buffer.add(getIndividuals().get(i));
 		
-		Random rand = new Random(System.currentTimeMillis());
-		
-		for (; i < getIndividuals().size(); i++) {
-			if (rand.nextFloat() <= getCrossoverRate()) {
+		for (int i = pivot; i < getIndividuals().size(); i++) {
+			if (Irregular.rangeFloat(0, true, 1, true) <= getCrossoverRate()) {
+				
 				ArrayList<Individual<T>> parents = selectParents();
 				
 				if (parents == null || parents.size() < 2)
-					return;
+					continue;
 				
 				ArrayList<Individual<T>> children = getMutationAction().mate(parents.get(0), parents.get(1));
 				
+				int numberOfChildrenAdded = 0;
 				for (int j = 0; j < children.size(); j++) {
 					if (i < getIndividuals().size()) {
-						if (rand.nextFloat() <= getMutationRate()) {
+						if (Irregular.rangeFloat(0, true, 1, true) <= getMutationRate()) {
 							buffer.add(getMutationAction().mutate(children.get(j)));
-							i++;
+							numberOfChildrenAdded++;
 						}
 						else {
 							buffer.add(children.get(j));
-							i++;
+							numberOfChildrenAdded++;
 						}
 					}
 				}
+				
+				if (numberOfChildrenAdded - 1 > 0)
+					i += numberOfChildrenAdded - 1;
 			}
 			else {
-				if (rand.nextFloat() <= getMutationRate())
+				if (Irregular.rangeFloat(0, true, 1, true) <= getMutationRate())
 					buffer.add(getMutationAction().mutate(getIndividuals().get(i)));
 				else
 					buffer.add(getIndividuals().get(i));
@@ -107,25 +114,41 @@ public class Population<T> extends EnhancedObservable implements Serializable, C
 		}
 		
 		// individuals := buffer
-		setIndividuals(new ArrayList<>(buffer.size()));
+		setIndividuals(new Lexicon<>());
 		for (Individual<T> individual : buffer)
 			getIndividuals().add(individual);
 		
+		evaluate();
 		sort();
+		
+		// Because the selection of the parent can be in the 'immovable' part (the first element in the buffer', more
+		// than 'size' person can be in the population. That is why the first overflowed elements must be removed
+		/*while (getIndividuals().size() > getSize())
+			getIndividuals().remove(0);*/
 	}
 	
-	public @Nullable ArrayList<Individual<T>> selectParents() {
+	@Nullable
+	public ArrayList<Individual<T>> selectParents() {
 		ArrayList<Individual<T>> parents = new ArrayList<>(2);
 		
 		if (getIndividuals().size() < 2)
 			return null;
 		
-		Random rand = new Random(System.currentTimeMillis());
 		for (int i = 0; i < 2; i++) {
-			parents.add(getIndividuals().get(rand.nextInt(getIndividuals().size())));
+			
+			int randomIndex = Irregular.rangeInt(0, true, getIndividuals().size(), false);
+			Individual<T> individual = getIndividuals().get(randomIndex);
+			
+			parents.add(individual);
+			
 			for (int j = 0; j < 3; j++) {
-				int idx = rand.nextInt(getIndividuals().size());
-				if (getIndividuals().get(idx).compareTo(parents.get(i)) < 0)
+				
+				int idx = 0;
+				do {
+					idx = Irregular.rangeInt(0, true, getIndividuals().size(), false);
+				} while(i == idx);
+				
+				if (getIndividuals().get(idx).compareTo(parents.get(i)) > 0)
 					parents.set(i, getIndividuals().get(idx));
 			}
 		}
@@ -133,41 +156,29 @@ public class Population<T> extends EnhancedObservable implements Serializable, C
 		return parents;
 	}
 	
-	/*
-	@Override
+	public void evaluate() {
+		for (int i = 0; i < getIndividuals().size(); i++) {
+			double fitness = getMutationAction().calculateFitness(getIndividuals().get(i));
+			getIndividuals().get(i).setFitness(fitness);
+		}
+	}
+	
+	/**
+	 * Sort the list of individuals in ascending order (from the smallest fitness to the greatest)
+	 */
 	public void sort() {
-		getIndividuals().sort(new Comparator<Individual<T>>() {
-			@Override
-			public int compare(Individual<T> o1, Individual<T> o2) {
-				if (o1 == null && o2 == null)
-					return 0;
-				
-				if (o1 != null && o2 == null)
-					return 1;
-				
-				if (o1 == null && o2 != null)
-					return -1;
-				
-				if (o1.getChromosomes().size() == 0 || o2.getChromosomes().size() == 0)
-					return 0;
-				
-				if (o1.getChromosomes().size() > 0 && o2.getChromosomes().size() == 0)
-					return 1;
-				
-				if (o1.getChromosomes().size() == 0 && o2.getChromosomes().size() > 0)
-					return -1;
-				
-				return o1.compareTo(o2);
-			}
-		});
-	}*/
+		getIndividuals().sort(Individual::compareTo);
+	}
 	
 	/* GETTER & SETTER */
 	
 	@NotNull
 	public Lexicon<Individual<T>> getIndividuals() {
-		if (individuals == null)
+		if (individuals == null) {
 			setIndividuals(new Lexicon<>());
+			this.individuals.setAcceptNullValues(false);
+			this.individuals.addObserver(((observable, o) -> snap(o)));
+		}
 		
 		return individuals;
 	}
@@ -177,11 +188,8 @@ public class Population<T> extends EnhancedObservable implements Serializable, C
 			throw new NullPointerException();
 		
 		this.individuals = individuals;
-		this.individuals.deleteNullElement();
 		this.individuals.setAcceptNullValues(false);
-		this.individuals.addObserver(((observable, o) -> {
-			snap(o);
-		}));
+		this.individuals.addObserver(((observable, o) -> snap(o)));
 	}
 	
 	@SafeVarargs
@@ -338,13 +346,13 @@ public class Population<T> extends EnhancedObservable implements Serializable, C
 	@Override
 	public String toString() {
 		return "Population{" +
-				"individuals=" + individuals +
-				", size=" + size +
-				", maxGeneration=" + maxGeneration +
-				", elitismRate=" + elitismRate +
-				", mutationRate=" + mutationRate +
-				", crossoverRate=" + crossoverRate +
-				", mutationAction=" + mutationAction +
+				"individuals=\"" + (getIndividuals().size() > 3 ? "... (" + getIndividuals().size() + ")" : getIndividuals().toString()) + '\"' +
+				", size=\"" + getSize() + '\"' +
+				", maxGeneration=\"" + getMaxGeneration() + '\"' +
+				", elitismRate=\"" + getElitismRate() + '\"' +
+				", mutationRate=\"" + getMutationRate() + '\"' +
+				", crossoverRate=\"" + getCrossoverRate() + '\"' +
+				", mutationAction=\"" + getMutationRate() + '\"' +
 				'}';
 	}
 }

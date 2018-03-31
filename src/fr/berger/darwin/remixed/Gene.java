@@ -73,10 +73,11 @@ public class Gene<T> extends EnhancedObservable implements Serializable, Cloneab
 	@SuppressWarnings("unchecked")
 	public void setData(@Nullable T data) {
 		this.data = data;
-		snap(this.data);
 		
-		if (this.data != null)
+		if (this.data != null && getClazz() == null)
 			setClazz((Class<T>) this.data.getClass());
+		
+		snap(this.data);
 		
 		for (DataListener<T> dataListener : getDataListeners())
 			dataListener.onDataChanged(this.data);
@@ -138,7 +139,7 @@ public class Gene<T> extends EnhancedObservable implements Serializable, Cloneab
 	@Override
 	public String toString() {
 		return "Gene{" +
-				"data=" + data +
+				"data=\"" + data + '\"' +
 				'}';
 	}
 }

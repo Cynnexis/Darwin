@@ -28,6 +28,7 @@ public class Chromosome<T> extends EnhancedObservable implements Serializable, C
 	public Chromosome(@Nullable ArrayList<Gene<T>> genes) {
 		initialize(new Lexicon<>(genes));
 	}
+	@SafeVarargs
 	public Chromosome(@Nullable Gene<T>... genes) {
 		initialize(new Lexicon<>(genes));
 	}
@@ -67,8 +68,11 @@ public class Chromosome<T> extends EnhancedObservable implements Serializable, C
 	
 	@NotNull
 	public Lexicon<Gene<T>> getGenes() {
-		if (this.genes == null)
+		if (this.genes == null) {
+			this.genes.setAcceptNullValues(false);
+			this.genes.addObserver((observable, o) -> snap(o));
 			this.genes = new Lexicon<>();
+		}
 		
 		return genes;
 	}
@@ -84,7 +88,6 @@ public class Chromosome<T> extends EnhancedObservable implements Serializable, C
 		this.genes = genes;
 		
 		this.genes.setAcceptNullValues(false);
-		this.genes.deleteNullElement();
 		this.genes.addObserver((observable, o) -> snap(o));
 		
 		for (GenesListener<T> genesListener : getGenesListeners())
@@ -160,7 +163,7 @@ public class Chromosome<T> extends EnhancedObservable implements Serializable, C
 	@NotEmpty
 	public String toString() {
 		return "Chromosome{" +
-				"genes=" + genes +
+				"genes=\"" + (getGenes().size() > 5 ? "... (" + getGenes().size() + ")" : getGenes().toString()) + '\"' +
 				'}';
 	}
 }

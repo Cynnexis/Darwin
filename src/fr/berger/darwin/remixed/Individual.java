@@ -15,16 +15,36 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.*;
 
-public class Individual<T> extends EnhancedObservable implements Serializable, Cloneable, Iterable<Chromosome<T>> {
+public class Individual<T> extends EnhancedObservable implements Serializable, Cloneable, Comparable<Individual<T>>, Iterable<Chromosome<T>> {
 	
+	/**
+	 * Unique identifier
+	 */
 	@NotNull
 	private UUID id;
 	
+	/**
+	 * List of chromosomes
+	 */
 	@NotNull
 	private Lexicon<Chromosome<T>> chromosomes = new Lexicon<>();
 	
+	/**
+	 * Last fitness calculated. If not tested, fitness = 0
+	 */
+	private double fitness;
+	
+	/**
+	 * List of chromosomes listener
+	 */
 	@NotNull
 	private ArrayList<ChromosomesListener<T>> chromosomesListeners;
+	
+	/**
+	 * List of fitness listener
+	 */
+	@NotNull
+	private ArrayList<FitnessListener> fitnessListeners;
 	
 	/*@NotNull
 	private ArrayList<FitnessListener> fitnessListeners;*/
@@ -35,6 +55,7 @@ public class Individual<T> extends EnhancedObservable implements Serializable, C
 	public Individual(@Nullable ArrayList<Chromosome<T>> chromosomes) {
 		initialize(new Lexicon<>(chromosomes));
 	}
+	@SafeVarargs
 	public Individual(@Nullable Chromosome<T>... chromosomes) {
 		initialize(new Lexicon<>(chromosomes));
 	}
@@ -55,8 +76,11 @@ public class Individual<T> extends EnhancedObservable implements Serializable, C
 		if (chromosomes == null)
 			chromosomes = new Lexicon<>();
 		
+		setFitness(0.0);
+		
 		setChromosomes(chromosomes);
 		setChromosomesListeners(new ArrayList<>());
+		setFitnessListeners(new ArrayList<>());
 	}
 	
 	/* GETTER & SETTER */
@@ -77,8 +101,11 @@ public class Individual<T> extends EnhancedObservable implements Serializable, C
 	}
 	
 	public @NotNull Lexicon<Chromosome<T>> getChromosomes() {
-		if (this.chromosomes == null)
+		if (this.chromosomes == null) {
 			this.chromosomes = new Lexicon<>();
+			this.chromosomes.setAcceptNullValues(false);
+			this.chromosomes.addObserver((observable, o) -> snap(o));
+		}
 		
 		return this.chromosomes;
 	}
@@ -94,11 +121,21 @@ public class Individual<T> extends EnhancedObservable implements Serializable, C
 		this.chromosomes = chromosomes;
 		
 		this.chromosomes.setAcceptNullValues(false);
-		this.chromosomes.deleteNullElement();
 		this.chromosomes.addObserver((observable, o) -> snap(o));
 		
 		for (ChromosomesListener<T> chromosomesListener : getChromosomesListeners())
 			chromosomesListener.onChromosomesChanged(this.chromosomes);
+	}
+	
+	public double getFitness() {
+		return fitness;
+	}
+	
+	/* package */ void setFitness(double fitness) {
+		this.fitness = fitness;
+		
+		for (FitnessListener fitnessListener : getFitnessListeners())
+			fitnessListener.onFitnessChanged(this.fitness);
 	}
 	
 	public @NotNull ArrayList<ChromosomesListener<T>> getChromosomesListeners() {
@@ -129,7 +166,7 @@ public class Individual<T> extends EnhancedObservable implements Serializable, C
 		getChromosomesListeners().add(chromosomesListener);
 	}
 	
-	/*public @NotNull ArrayList<FitnessListener> getFitnessListeners() {
+	public @NotNull ArrayList<FitnessListener> getFitnessListeners() {
 		if (this.fitnessListeners == null)
 			this.fitnessListeners = new ArrayList<>();
 		
@@ -151,11 +188,8 @@ public class Individual<T> extends EnhancedObservable implements Serializable, C
 		if (fitnessListener == null)
 			throw new NullPointerException();
 		
-		if (getFitnessListeners() == null)
-			this.fitnessListeners = new ArrayList<>();
-		
 		getFitnessListeners().add(fitnessListener);
-	}*/
+	}
 	
 	/* SERIALIZATION METHODS */
 	
@@ -171,6 +205,14 @@ public class Individual<T> extends EnhancedObservable implements Serializable, C
 	}
 	
 	/* OVERRIDES */
+	
+	@Override
+	public int compareTo(@NotNull Individual<T> individual) {
+		if (individual == null)
+			return 0;
+		
+		return (int) (getFitness() - individual.getFitness());
+	}
 	
 	@Override
 	public Iterator<Chromosome<T>> iterator() {
@@ -195,20 +237,22 @@ public class Individual<T> extends EnhancedObservable implements Serializable, C
 		if (this == o) return true;
 		if (!(o instanceof Individual)) return false;
 		Individual<?> that = (Individual<?>) o;
-		return Objects.equals(getId(), that.getId()) &&
+		return Double.compare(that.getFitness(), getFitness()) == 0 &&
+				Objects.equals(getId(), that.getId()) &&
 				Objects.equals(getChromosomes(), that.getChromosomes());
 	}
 	
 	@Override
 	public int hashCode() {
-		return Objects.hash(getId(), getChromosomes());
+		return Objects.hash(getId(), getChromosomes(), getFitness());
 	}
 	
 	@Override
 	public String toString() {
 		return "Individual{" +
-				"id=" + getId().toString() +
-				", chromosomes=" + getChromosomes().toString() +
+				"id=\"" + getId().toString() + + '\"' +
+				", chromosomes=\"" + (getChromosomes().size() > 5 ? "... (" + getChromosomes().size() + ")" : getChromosomes().toString()) + '\"' +
+				", fitness=" + getFitness() +
 				'}';
 	}
 }

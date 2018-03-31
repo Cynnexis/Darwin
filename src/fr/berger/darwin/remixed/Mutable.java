@@ -9,10 +9,10 @@ public interface Mutable<T> {
 	double calculateFitness(@NotNull Individual<T> individual);
 	
 	@NotNull
-	Individual<T> mutate(Individual<T> individual);
+	Individual<T> mutate(@NotNull Individual<T> individual);
 	
 	@NotNull
-	ArrayList<Individual<T>> mate(Individual<T> parent1, Individual<T> parent2);
+	ArrayList<Individual<T>> mate(@NotNull Individual<T> parent1, @NotNull Individual<T> parent2);
 	
 	@NotNull
 	Individual<T> generateRandom();

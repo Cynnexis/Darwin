@@ -1,11 +1,15 @@
 package fr.berger.darwin.remixed;
 
-import com.sun.istack.internal.NotNull;
+import fr.berger.beyondcode.util.Irregular;
+import fr.berger.enhancedlist.lexicon.Lexicon;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Objects;
 import java.util.Random;
 
 class PopulationTest {
@@ -13,31 +17,36 @@ class PopulationTest {
 	@NotNull
 	private Population<String> population;
 	
+	private long size = 2048L;
+	
+	private final String TARGET = "I'm learning to write this sentence.";
+	
 	@BeforeEach
 	void setup() {
-		population = new Population<>(new ArrayList<>(), 2048L, 16384L, 0.2f, 0.03f, 0.8f, new Mutable<String>() {
-			
-			private Random rand = new Random(System.currentTimeMillis());;
-			private final String TARGET = "Hello world";
+		population = new Population<>(new ArrayList<>(), size, 16384L, 0.2f, 0.03f, 0.8f, new Mutable<String>() {
 			
 			@Override
-			public int calculateFitness(Chromosome<String> genes) {
-				int fitness = 0;
-				for (int i = 0; i < genes.getGenes().get(i).getData().length(); i++)
-					fitness += Math.abs(((int) genes.getGenes().get(i).getData().charAt(i)) - ((int) TARGET.charAt(i)));
+			public double calculateFitness(@NotNull Individual<String> individual) {
+				double fitness = 0;
+				try {
+					for (int i = 0; i < Integer.min(individual.getChromosomes().get(0).getGenes().get(0).getData().length(), TARGET.length()); i++)
+						fitness += -Math.abs(((int) individual.getChromosomes().get(0).getGenes().get(0).getData().charAt(i)) - ((int) TARGET.charAt(i)));
+				} catch (Exception ex) {
+					ex.printStackTrace();
+				}
 				
 				return fitness;
 			}
 			
 			@Override
-			public Individual<String> mutate(Individual<String> individual) {
+			public Individual<String> mutate(@NotNull Individual<String> individual) {
 				String gene = individual.getChromosomes().get(0).getGenes().get(0).getData();
 				
-				int i = rand.nextInt(gene.length());
-				int delta = (rand.nextInt() % 90) + 32;
+				int i = Irregular.rangeInt(0, true, gene.length(), false);
+				char delta = Irregular.rangeChar((char) 32, true, (char) 126, true);
 				
 				StringBuilder geneBuilder = new StringBuilder(gene);
-				geneBuilder.setCharAt(i, (char) ((gene.charAt(i) + delta) % 122));
+				geneBuilder.setCharAt(i, delta);
 				
 				individual.getChromosomes().get(0).getGenes().get(0).setData(geneBuilder.toString());
 				
@@ -45,26 +54,40 @@ class PopulationTest {
 			}
 			
 			@Override
-			public ArrayList<Individual<String>> mate(Individual<String> parent1, Individual<String> parent2) {
+			public ArrayList<Individual<String>> mate(@NotNull Individual<String> parent1, @NotNull Individual<String> parent2) {
+				if (parent1 == null || parent2 == null)
+					throw new NullPointerException();
+				
 				String g1 = parent1.getChromosomes().get(0).getGenes().get(0).getData();
 				String g2 = parent2.getChromosomes().get(0).getGenes().get(0).getData();
-				StringBuilder b1 = new StringBuilder(g1);
-				StringBuilder b2 = new StringBuilder(g2);
-				int pivot = rand.nextInt(g1.length());
+				StringBuilder b1 = new StringBuilder();
+				StringBuilder b2 = new StringBuilder();
+				
+				int pivot = Irregular.rangeInt(0, true, Integer.min(g1.length(), g2.length()), false);
 				
 				ArrayList<Individual<String>> children = new ArrayList<>(2);
-				children.add(new Individual<>());
-				children.add(new Individual<>());
+				@SuppressWarnings("unchecked")
+				Individual<String> child1 = new Individual<>(new Chromosome<>(new Gene<>(String.class)));
+				Individual<String> child2 = new Individual<>(new Chromosome<>(new Gene<>(String.class)));
 				
-				for (Individual<String> child : children) {
-					StringBuilder builder = new StringBuilder("");
-					for (int i = 0; i < pivot; i++)
-						builder.append(g1.charAt(i));
-					
-					for (int i = pivot; i < g2.length(); i++)
-						builder.append(g2.charAt(i));
-					child.getChromosomes().get(0).getGenes().get(0).setData(builder.toString());
-				}
+				for (int i = 0; i < pivot; i++)
+					b1.append(g1.charAt(i));
+				for (int i = pivot; i < g2.length(); i++)
+					b1.append(g2.charAt(i));
+				
+				for (int i = 0; i < pivot; i++)
+					b2.append(g2.charAt(i));
+				for (int i = pivot; i < g1.length(); i++)
+					b2.append(g1.charAt(i));
+				
+				Assertions.assertEquals(TARGET.length(), b1.length());
+				Assertions.assertEquals(b1.length(), b2.length());
+				
+				child1.getChromosomes().get(0).getGenes().get(0).setData(b1.toString());
+				child2.getChromosomes().get(0).getGenes().get(0).setData(b2.toString());
+				
+				children.add(child1);
+				children.add(child2);
 				
 				return children;
 			}
@@ -73,13 +96,14 @@ class PopulationTest {
 			public Individual<String> generateRandom() {
 				StringBuilder builder = new StringBuilder("");
 				
-				for (int i = 0; i < TARGET.length(); i++)
-					builder.append((char) (rand.nextInt(90) + 32));
+				builder = new StringBuilder(Irregular.rangeString(TARGET.length(), TARGET.length(), true, false));
+				
+				Assertions.assertEquals(TARGET.length(), builder.length());
 				
 				ArrayList<Gene<String>> genes = new ArrayList<>(1);
 				genes.add(new Gene<>(builder.toString()));
 				
-				ArrayList<Chromosome<String>> chromosomes = new ArrayList<>(1);
+				Lexicon<Chromosome<String>> chromosomes = new Lexicon<>((Class<Chromosome<String>>) new Chromosome<String>().getClass(), 1);
 				chromosomes.add(new Chromosome<>(genes));
 				
 				return new Individual<>(chromosomes);
@@ -87,29 +111,25 @@ class PopulationTest {
 		});
 	}
 	
-	@AfterEach
-	void tearDown() {
-	}
-	
 	@Test
 	void test_evolve() {
 		System.out.println(population.toString());
 		
-		long start = System.nanoTime();
+		long start = System.currentTimeMillis();
 		Individual<String> best = population.getIndividuals().get(0);
-		for (int i = 0; i < 3000; i++) {
+		int i;
+		for (i = 0; i < 1000 && !Objects.equals(best.getChromosomes().get(0).getGenes().get(0).getData(), TARGET); i++) {
 			population.evolve();
-			best = population.getIndividuals().get(population.getIndividuals().size() - 1);
+			if (population.getIndividuals().size() > 0)
+				best = population.getIndividuals().get(population.getIndividuals().size() - 1);
 		}
-		long stop = System.nanoTime();
+		long stop = System.currentTimeMillis();
 		
-		System.out.println("Time: " + (stop - start) + "ns");
-		System.out.println("Best: " + best.toString());
+		//Assertions.assertEquals(size, population.getSize());
+		
+		System.out.println("Time: " + (stop - start) + "ms");
+		System.out.println("Number of iteration: " + i);
+		System.out.println("Best: " + population.getIndividuals().get(population.getIndividuals().size() - 1).toString());
 		System.out.println(population.toString());
-	}
-	
-	@Test
-	void test_selectParents() {
-		System.out.println("Selected Parents: " + population.selectParents());
 	}
 }
