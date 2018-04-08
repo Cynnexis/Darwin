@@ -18,12 +18,13 @@ class PopulationTest {
 	private Population<String> population;
 	
 	private long size = 2048L;
+	private long maxGeneration = 16384L;
 	
 	private final String TARGET = "I'm learning to write this sentence.";
 	
 	@BeforeEach
 	void setup() {
-		population = new Population<>(new ArrayList<>(), size, 16384L, 0.2f, 0.03f, 0.8f, new Mutable<String>() {
+		population = new Population<>(new ArrayList<>(), size, maxGeneration, 0.2f, 0.03f, 0.8f, new Mutable<String>() {
 			
 			@Override
 			public double calculateFitness(@NotNull Individual<String> individual) {
@@ -118,7 +119,7 @@ class PopulationTest {
 		long start = System.currentTimeMillis();
 		Individual<String> best = population.getIndividuals().get(0);
 		int i;
-		for (i = 0; i < 1000 && !Objects.equals(best.getChromosomes().get(0).getGenes().get(0).getData(), TARGET); i++) {
+		for (i = 0; i < maxGeneration && !Objects.equals(best.getChromosomes().get(0).getGenes().get(0).getData(), TARGET); i++) {
 			population.evolve();
 			if (population.getIndividuals().size() > 0)
 				best = population.getIndividuals().get(population.getIndividuals().size() - 1);
@@ -129,7 +130,9 @@ class PopulationTest {
 		
 		System.out.println("Time: " + (stop - start) + "ms");
 		System.out.println("Number of iteration: " + i);
-		System.out.println("Best: " + population.getIndividuals().get(population.getIndividuals().size() - 1).toString());
+		System.out.println("Best: " + best.toString());
 		System.out.println(population.toString());
+		
+		Assertions.assertTrue(i == maxGeneration || Objects.equals(best.getChromosomes().get(0).getGenes().get(0).getData(), TARGET));
 	}
 }

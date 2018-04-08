@@ -123,8 +123,8 @@ public class Population<T> extends EnhancedObservable implements Serializable, C
 		
 		// Because the selection of the parent can be in the 'immovable' part (the first element in the buffer', more
 		// than 'size' person can be in the population. That is why the first overflowed elements must be removed
-		/*while (getIndividuals().size() > getSize())
-			getIndividuals().remove(0);*/
+		while (getIndividuals().size() > getSize())
+			getIndividuals().remove((int) 0);
 	}
 	
 	@Nullable
