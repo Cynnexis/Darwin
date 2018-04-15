@@ -1,84 +1,101 @@
 package fr.berger.darwin.connection;
 
-import fr.berger.beyondcode.annotations.Positive;
 import fr.berger.beyondcode.util.EnhancedObservable;
-import fr.berger.darwin.connection.handlers.ActivationHandler;
 import fr.berger.darwin.connection.neurallayers.HiddenLayer;
 import fr.berger.darwin.connection.neurallayers.InputLayer;
 import fr.berger.darwin.connection.neurallayers.OutputLayer;
+import fr.berger.enhancedlist.lexicon.Lexicon;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.Objects;
 
-public class NeuralNetwork extends EnhancedObservable implements Serializable, Cloneable {
+public class NeuralNetwork extends EnhancedObservable implements Triggerable, Serializable, Cloneable {
 	
 	/* PROPERTIES */
 	
 	@NotNull
 	private InputLayer inputLayer;
 	@NotNull
-	private ArrayList<HiddenLayer> hiddenLayers;
+	private Lexicon<HiddenLayer> hiddenLayers;
 	@NotNull
 	private OutputLayer outputLayer;
 	
 	/* CONSTRUCTORS & INITIALIZING METHODS */
 	
-	public NeuralNetwork(@NotNull InputLayer inputLayer, @NotNull OutputLayer outputLayer, @Nullable ArrayList<HiddenLayer> hiddenLayers) {
+	public NeuralNetwork(@NotNull InputLayer inputLayer, @NotNull OutputLayer outputLayer, @Nullable Lexicon<HiddenLayer> hiddenLayers) {
 		setInputLayer(inputLayer);
 		setHiddenLayers(hiddenLayers);
+		setOutputLayer(outputLayer);
+	}
+	public NeuralNetwork(@NotNull InputLayer inputLayer, @NotNull OutputLayer outputLayer, @Nullable Collection<HiddenLayer> hiddenLayers) {
+		setInputLayer(inputLayer);
+		setHiddenLayers(new Lexicon<>(hiddenLayers));
 		setOutputLayer(outputLayer);
 	}
 	public NeuralNetwork(@NotNull InputLayer inputLayer, @NotNull OutputLayer outputLayer, @Nullable HiddenLayer... hiddenLayers) {
-		ArrayList<HiddenLayer> list = new ArrayList<>();
-		list.addAll(Arrays.asList(hiddenLayers));
-		
 		setInputLayer(inputLayer);
-		setHiddenLayers(list);
+		setHiddenLayers(new Lexicon<>(hiddenLayers));
 		setOutputLayer(outputLayer);
 	}
-	public NeuralNetwork(@Positive int numberOfInputs, @Positive int numberOfNeuronsPerHiddenLayer, @NotNull ArrayList<ActivationHandler> hiddenActivationHandlers, @Positive int numberOfNeuronsPerOutputLayer, @NotNull ActivationHandler outputActivationHandler) {
-		setInputLayer(new InputLayer(numberOfInputs));
+	@SuppressWarnings("ConstantConditions")
+	public NeuralNetwork(@NotNull NeuralNetwork neuralNetwork) {
+		if (neuralNetwork == null)
+			throw new NullPointerException();
 		
-		ArrayList<HiddenLayer> hiddenLayers = new ArrayList<>();
-		for (ActivationHandler ah : hiddenActivationHandlers) {
-			hiddenLayers.add(new HiddenLayer(numberOfNeuronsPerHiddenLayer, numberOfInputs, ah));
-		}
-		setHiddenLayers(hiddenLayers);
-		
-		setOutputLayer(new OutputLayer(numberOfNeuronsPerHiddenLayer, numberOfNeuronsPerOutputLayer, outputActivationHandler));
+		setInputLayer(neuralNetwork.getInputLayer());
+		setHiddenLayers(neuralNetwork.getHiddenLayers());
+		setOutputLayer(neuralNetwork.getOutputLayer());
+	}
+	public NeuralNetwork() {
+		initInputLayer();
+		initHiddenLayers();
+		initOutputLayer();
 	}
 	
 	/* NEURAL NETWORK METHODS */
 	
 	@NotNull
-	public ArrayList<Neuron> getAllNeurons() {
-		int numberOfNeurons = 0;
-		numberOfNeurons += getInputLayer().getNeurons().size();
-		for (HiddenLayer hiddenLayer : getHiddenLayers()) {
-			numberOfNeurons += hiddenLayer.getNeurons().size();
-		}
-		numberOfNeurons += getOutputLayer().getNeurons().size();
+	public Lexicon<Neuron> getAllNeurons() {
+		int nbNeurons = getInputLayer().getNeurons().size() + getOutputLayer().getNeurons().size();
 		
-		ArrayList<Neuron> neurons = new ArrayList<>(numberOfNeurons);
+		for (HiddenLayer hiddenLayer : getHiddenLayers())
+			nbNeurons += hiddenLayer.getNeurons().size();
+		
+		Lexicon<Neuron> neurons = new Lexicon<>(Neuron.class, nbNeurons);
+		
+		neurons.addAll(getInputLayer().getNeurons());
+		neurons.addAll(getOutputLayer().getNeurons());
+		
+		for (HiddenLayer hiddenLayer : getHiddenLayers())
+			neurons.addAll(hiddenLayer.getNeurons());
+		
 		return neurons;
+	}
+	
+	@Override
+	public double fire() {
+		// TODO: Fire the whole network (fireworks!)
+		return getInputLayer().fire();
 	}
 	
 	/* GETTERS & SETTERS */
 	
+	@SuppressWarnings("ConstantConditions")
 	@NotNull
 	public InputLayer getInputLayer() {
-		if (inputLayer == null) {
-			inputLayer = new InputLayer();
-			snap(inputLayer);
-		}
+		if (inputLayer == null)
+			initInputLayer();
 		
 		return inputLayer;
 	}
 	
+	@SuppressWarnings("ConstantConditions")
 	public void setInputLayer(@NotNull InputLayer inputLayer) {
 		if (inputLayer == null)
 			throw new NullPointerException();
@@ -87,46 +104,72 @@ public class NeuralNetwork extends EnhancedObservable implements Serializable, C
 		snap(this.inputLayer);
 	}
 	
+	protected void initInputLayer() {
+		setInputLayer(new InputLayer());
+	}
+	
+	@SuppressWarnings("ConstantConditions")
 	@NotNull
-	public ArrayList<HiddenLayer> getHiddenLayers() {
-		if (hiddenLayers == null) {
-			hiddenLayers = new ArrayList<>();
-			snap(hiddenLayers);
-		}
+	public Lexicon<HiddenLayer> getHiddenLayers() {
+		if (hiddenLayers == null)
+			initHiddenLayers();
 		
 		return hiddenLayers;
 	}
 	
-	public void setHiddenLayers(@Nullable ArrayList<HiddenLayer> hiddenLayers) {
+	public void setHiddenLayers(@Nullable Lexicon<HiddenLayer> hiddenLayers) {
 		if (hiddenLayers != null) {
-			this.hiddenLayers = new ArrayList<>();
-			for (HiddenLayer hiddenLayer : hiddenLayers)
-				if (hiddenLayer != null)
-					this.hiddenLayers.add(hiddenLayer);
+			this.hiddenLayers = hiddenLayers;
+			configureHiddenLayers();
 		}
 		else
-			this.hiddenLayers = new ArrayList<>();
-		
-		snap(this.hiddenLayers);
+			initInputLayer();
 	}
 	
+	protected void initHiddenLayers() {
+		setHiddenLayers(new Lexicon<>());
+	}
+	
+	protected void configureHiddenLayers() {
+		getHiddenLayers().setAcceptNullValues(false);
+		snap(getHiddenLayers());
+	}
+	
+	@SuppressWarnings("ConstantConditions")
 	@NotNull
 	public OutputLayer getOutputLayer() {
-		if (outputLayer == null) {
-			outputLayer = new OutputLayer();
-			snap(outputLayer);
-		}
+		if (outputLayer == null)
+			initOutputLayer();
 		
 		return outputLayer;
 	}
 	
+	@SuppressWarnings("ConstantConditions")
 	public void setOutputLayer(@NotNull OutputLayer outputLayer) {
 		if (outputLayer == null)
 			throw new NullPointerException();
 		
 		this.outputLayer = outputLayer;
-		
 		snap(this.outputLayer);
+	}
+	
+	protected void initOutputLayer() {
+		setOutputLayer(new OutputLayer());
+	}
+	
+	/* SERIALIZATION METHODS */
+	
+	private void writeObject(@NotNull ObjectOutputStream stream) throws IOException {
+		stream.writeObject(getInputLayer());
+		stream.writeObject(getHiddenLayers());
+		stream.writeObject(getOutputLayer());
+	}
+	
+	@SuppressWarnings("unchecked")
+	private void readObject(@NotNull ObjectInputStream stream) throws IOException, ClassNotFoundException {
+		setInputLayer((InputLayer) stream.readObject());
+		setHiddenLayers((Lexicon<HiddenLayer>) stream.readObject());
+		setOutputLayer((OutputLayer) stream.readObject());
 	}
 	
 	/* OVERRIDES */

@@ -12,5 +12,6 @@
     <orderEntry type="library" name="EnhancedList" level="project" />
     <orderEntry type="library" name="JUnit5.0" level="project" />
     <orderEntry type="library" name="BeyondCode" level="project" />
+    <orderEntry type="library" name="Arrow" level="project" />
   </component>
 </module>

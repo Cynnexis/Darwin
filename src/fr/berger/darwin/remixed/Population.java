@@ -4,20 +4,21 @@ import com.sun.istack.internal.NotNull;
 import com.sun.istack.internal.Nullable;
 import fr.berger.beyondcode.util.EnhancedObservable;
 import fr.berger.beyondcode.util.Irregular;
-import fr.berger.darwin.remixed.listeners.IndividualsListener;
 import fr.berger.darwin.remixed.annotations.Range;
+import fr.berger.darwin.remixed.listeners.IndividualsListener;
 import fr.berger.enhancedlist.lexicon.Lexicon;
-import org.junit.jupiter.api.Assertions;
-import org.opentest4j.AssertionFailedError;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.Objects;
 
+@SuppressWarnings("DefaultAnnotationParam")
 public class Population<T> extends EnhancedObservable implements Serializable, Cloneable, Iterable<Individual<T>> {
 
 	private Lexicon<Individual<T>> individuals;
 	private long size;
-	private long maxGeneration;
 	@Range(a = 0, b = 1)
 	private float elitismRate;
 	@Range(a = 0, b = 1)
@@ -31,33 +32,29 @@ public class Population<T> extends EnhancedObservable implements Serializable, C
 	private ArrayList<IndividualsListener<T>> individualsListeners;
 	
 	public Population(@NotNull Mutable<T> mutationAction) {
-		initialize(null, 0, 1024, .2f, 0.1f, 0.1f, mutationAction);
+		initialize(null, 0, .2f, 0.1f, 0.1f, mutationAction);
 	}
 	public Population(@Nullable ArrayList<Individual<T>> individuals, @NotNull Mutable<T> mutationAction) {
-		initialize(individuals, 0, 1024, .2f, 0.1f, 0.1f, mutationAction);
+		initialize(individuals, 0, .2f, 0.1f, 0.1f, mutationAction);
 	}
 	public Population(@Nullable ArrayList<Individual<T>> individuals, long size, @NotNull Mutable<T> mutationAction) {
-		initialize(individuals, size, 1024, .2f, 0.1f, 0.1f, mutationAction);
+		initialize(individuals, size, .2f, 0.1f, 0.1f, mutationAction);
 	}
-	public Population(@Nullable ArrayList<Individual<T>> individuals, long size, long maxGeneration, @NotNull Mutable<T> mutationAction) {
-		initialize(individuals, size, maxGeneration, .2f, 0.1f, 0.1f, mutationAction);
+	public Population(@Nullable ArrayList<Individual<T>> individuals, long size, @Range float elitismRate, @NotNull Mutable<T> mutationAction) {
+		initialize(individuals, size, elitismRate, 0.1f, 0.1f, mutationAction);
 	}
-	public Population(@Nullable ArrayList<Individual<T>> individuals, long size, long maxGeneration, @Range float elitismRate, @NotNull Mutable<T> mutationAction) {
-		initialize(individuals, size, maxGeneration, elitismRate, 0.1f, 0.1f, mutationAction);
+	public Population(@Nullable ArrayList<Individual<T>> individuals, long size, @Range float elitismRate, @Range float mutationRate, @NotNull Mutable<T> mutationAction) {
+		initialize(individuals, size, elitismRate, mutationRate, 0.1f, mutationAction);
 	}
-	public Population(@Nullable ArrayList<Individual<T>> individuals, long size, long maxGeneration, @Range float elitismRate, @Range float mutationRate, @NotNull Mutable<T> mutationAction) {
-		initialize(individuals, size, maxGeneration, elitismRate, mutationRate, 0.1f, mutationAction);
-	}
-	public Population(@Nullable ArrayList<Individual<T>> individuals, long size, long maxGeneration, @Range float elitismRate, @Range float mutationRate, @Range float crossoverRate, @NotNull Mutable<T> mutationAction) {
-		initialize(individuals, size, maxGeneration, elitismRate, mutationRate, crossoverRate, mutationAction);
+	public Population(@Nullable ArrayList<Individual<T>> individuals, long size, @Range float elitismRate, @Range float mutationRate, @Range float crossoverRate, @NotNull Mutable<T> mutationAction) {
+		initialize(individuals, size, elitismRate, mutationRate, crossoverRate, mutationAction);
 	}
 	
-	private void initialize(@Nullable ArrayList<Individual<T>> individuals, long size, long maxGeneration, float elitismRate, float mutationRate, float crossoverRate, @NotNull Mutable<T> mutationAction) {
+	private void initialize(@Nullable ArrayList<Individual<T>> individuals, long size, float elitismRate, float mutationRate, float crossoverRate, @NotNull Mutable<T> mutationAction) {
 		Lexicon<Individual<T>> lexicon = new Lexicon<>(individuals);
 		
 		setIndividuals(lexicon);
 		setSize(size);
-		setMaxGeneration(maxGeneration);
 		setElitismRate(elitismRate);
 		setMutationRate(mutationRate);
 		setCrossoverRate(crossoverRate);
@@ -89,14 +86,13 @@ public class Population<T> extends EnhancedObservable implements Serializable, C
 				ArrayList<Individual<T>> children = getMutationAction().mate(parents.get(0), parents.get(1));
 				
 				int numberOfChildrenAdded = 0;
-				for (int j = 0; j < children.size(); j++) {
+				for (Individual<T> aChildren : children) {
 					if (i < getIndividuals().size()) {
 						if (Irregular.rangeFloat(0, true, 1, true) <= getMutationRate()) {
-							buffer.add(getMutationAction().mutate(children.get(j)));
+							buffer.add(getMutationAction().mutate(aChildren));
 							numberOfChildrenAdded++;
-						}
-						else {
-							buffer.add(children.get(j));
+						} else {
+							buffer.add(aChildren);
 							numberOfChildrenAdded++;
 						}
 					}
@@ -207,15 +203,6 @@ public class Population<T> extends EnhancedObservable implements Serializable, C
 	public void setSize(long size) {
 		if (size >= 0)
 			this.size = size;
-	}
-	
-	public long getMaxGeneration() {
-		return maxGeneration;
-	}
-	
-	public void setMaxGeneration(long maxGeneration) {
-		if (maxGeneration >= 0)
-			this.maxGeneration = maxGeneration;
 	}
 	
 	public float getElitismRate() {
@@ -330,7 +317,6 @@ public class Population<T> extends EnhancedObservable implements Serializable, C
 		if (!(o instanceof Population)) return false;
 		Population<?> that = (Population<?>) o;
 		return getSize() == that.getSize() &&
-				getMaxGeneration() == that.getMaxGeneration() &&
 				Float.compare(that.getElitismRate(), getElitismRate()) == 0 &&
 				Float.compare(that.getMutationRate(), getMutationRate()) == 0 &&
 				Float.compare(that.getCrossoverRate(), getCrossoverRate()) == 0 &&
@@ -340,7 +326,7 @@ public class Population<T> extends EnhancedObservable implements Serializable, C
 	
 	@Override
 	public int hashCode() {
-		return Objects.hash(getIndividuals(), getSize(), getMaxGeneration(), getElitismRate(), getMutationRate(), getCrossoverRate(), getMutationAction());
+		return Objects.hash(getIndividuals(), getSize(), getElitismRate(), getMutationRate(), getCrossoverRate(), getMutationAction());
 	}
 	
 	@Override
@@ -348,7 +334,6 @@ public class Population<T> extends EnhancedObservable implements Serializable, C
 		return "Population{" +
 				"individuals=\"" + (getIndividuals().size() > 3 ? "... (" + getIndividuals().size() + ")" : getIndividuals().toString()) + '\"' +
 				", size=\"" + getSize() + '\"' +
-				", maxGeneration=\"" + getMaxGeneration() + '\"' +
 				", elitismRate=\"" + getElitismRate() + '\"' +
 				", mutationRate=\"" + getMutationRate() + '\"' +
 				", crossoverRate=\"" + getCrossoverRate() + '\"' +

@@ -1,9 +1,12 @@
 package fr.berger.darwin.connection;
 
+import fr.berger.arrow.Ref;
 import fr.berger.beyondcode.annotations.Positive;
 import fr.berger.beyondcode.util.EnhancedObservable;
 import fr.berger.beyondcode.util.Irregular;
 import fr.berger.darwin.connection.handlers.ActivationHandler;
+import fr.berger.enhancedlist.lexicon.Lexicon;
+import fr.berger.enhancedlist.lexicon.LexiconBuilder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -11,12 +14,11 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.UUID;
 
-public class Neuron extends EnhancedObservable implements Serializable, Cloneable {
+public class Neuron extends EnhancedObservable implements Triggerable, Serializable, Cloneable {
 	
 	/* PROPERTIES */
 	
@@ -30,14 +32,14 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 	 * List containing all the inputs of the neuron
 	 */
 	@NotNull
-	protected ArrayList<Double> inputs;
+	protected Lexicon<Double> inputs;
 	
 	/**
 	 * List containing all the weights of the inputs, with the bias
 	 * (<c>inputs.size() + 1 == weights.size()</c>)
 	 */
 	@NotNull
-	protected ArrayList<Double> weights;
+	protected Lexicon<Double> weights;
 	
 	/**
 	 * The default bias. Its weight is <c>weights.get(weights.size() - 1)</c>
@@ -51,62 +53,94 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 	@NotNull
 	protected ActivationHandler activationHandler;
 	
+	/**
+	 * The synapses of the neurons: the destination of the information after the computation
+	 */
+	@NotNull
+	private Lexicon<Ref<Neuron>> synapses;
+	
 	/* CONSTRUCTORS & INITIALIZING METHODS */
 	
-	public Neuron(@Positive int numberOfInputs, @NotNull ArrayList<Double> inputs, @NotNull ArrayList<Double> weights, @Positive double bias, @NotNull ActivationHandler activationHandler) {
+	public Neuron(@NotNull Lexicon<Double> inputs, @NotNull Lexicon<Double> weights, @Positive double bias, @NotNull ActivationHandler activationHandler, @NotNull Lexicon<Ref<Neuron>> synapses) {
 		super();
-		initialize(numberOfInputs, inputs, weights, bias, activationHandler);
+		initialize(inputs, weights, bias, activationHandler, synapses);
 	}
-	public Neuron(@NotNull ArrayList<Double> inputs, @NotNull ArrayList<Double> weights, @Positive double bias, @NotNull ActivationHandler activationHandler) {
+	@SuppressWarnings("unchecked")
+	public Neuron(@NotNull Lexicon<Double> inputs, @NotNull Lexicon<Double> weights, @Positive double bias, @NotNull ActivationHandler activationHandler, @NotNull Ref<Neuron>... synapses) {
 		super();
-		if (inputs == null)
+		initialize(inputs, weights, bias, activationHandler, new Lexicon<>(synapses));
+	}
+	public Neuron(@NotNull Lexicon<Double> inputs, @NotNull Lexicon<Double> weights, @Positive double bias, @NotNull ActivationHandler activationHandler) {
+		super();
+		initialize(inputs, weights, bias, activationHandler, null);
+	}
+	public Neuron(@NotNull ActivationHandler activationHandler, @NotNull Lexicon<Ref<Neuron>> synapses) {
+		super();
+		initialize(null, null, 1.0, activationHandler, synapses);
+	}
+	@SuppressWarnings("unchecked")
+	public Neuron(@NotNull ActivationHandler activationHandler, @Nullable Ref<Neuron>... synapses) {
+		super();
+		initialize(null, null, 1.0, activationHandler, new Lexicon<>(synapses));
+	}
+	public Neuron(@NotNull ActivationHandler activationHandler) {
+		super();
+		initialize(null, null, 1.0, activationHandler, null);
+	}
+	@SuppressWarnings("ConstantConditions")
+	public Neuron(@NotNull Neuron neuron) {
+		super();
+		
+		if (neuron == null)
 			throw new NullPointerException();
-		initialize(inputs.size(), inputs, weights, bias, activationHandler);
-	}
-	public Neuron(@Positive int numberOfInputs, @NotNull ActivationHandler activationHandler) {
-		super();
-		initialize(numberOfInputs, null, null, 1.0, activationHandler);
+		
+		setId(neuron.getId());
+		setInputs(neuron.getInputs());
+		setWeights(neuron.getWeights());
+		setBias(neuron.getBias());
+		setActivationHandler(neuron.getActivationHandler());
+		setSynapses(neuron.getSynapses());
 	}
 	public Neuron() {
 		super();
-		initialize(0, null, null, 1.0, (input -> 0.0d));
+		initialize(null, null, 1.0, (input -> 0.0d), null);
 	}
 	
-	protected void initialize(int numberOfInputs, @Nullable ArrayList<Double> inputs, @Nullable ArrayList<Double> weights, double bias, @Nullable ActivationHandler activationHandler) {
+	protected void initialize(@Nullable Lexicon<Double> inputs, @Nullable Lexicon<Double> weights, double bias, @Nullable ActivationHandler activationHandler, Lexicon<Ref<Neuron>> synapses) {
 		// Setting the identifier
-		setId(UUID.randomUUID());
-		
-		// Setting the number of inputs
-		if (numberOfInputs < 0)
-			numberOfInputs = 0;
+		initId();
 		
 		// Settings the inputs list
 		if (inputs == null)
-			setInputs(new ArrayList<>(numberOfInputs));
+			initInputs();
 		else if (inputs.isEmpty())
-			setInputs(new ArrayList<>(numberOfInputs));
+			initInputs();
 		else
 			setInputs(inputs);
 		
 		// Setting the weights list
-		if (weights == null)
-			generateRandomWeights(numberOfInputs);
-		else if (weights.isEmpty())
-			generateRandomWeights(numberOfInputs);
-		else
+		if (weights != null)
 			setWeights(weights);
+		else //noinspection ConstantConditions
+			if (weights == null && !getInputs().isEmpty())
+			generateRandomWeights();
 		
 		// Setting the bias
 		if (bias < 0)
-			setBias(1.0);
+			initBias();
 		else
 			setBias(bias);
 		
 		// Setting the activation handler
 		if (activationHandler == null)
-			setActivationHandler(outputBeforeActivation -> 0.0d);
+			initActivationHandler();
 		else
 			setActivationHandler(activationHandler);
+		
+		if (synapses == null)
+			initSynapses();
+		else
+			setSynapses(synapses);
 	}
 	
 	public void generateRandomWeights(@Positive int numberOfInputs) {
@@ -128,7 +162,8 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 	
 	/* NEURON METHODS */
 	
-	public double sum(@NotNull ArrayList<Double> inputs, @Positive double bias) {
+	@SuppressWarnings("ConstantConditions")
+	public double sum(@NotNull Lexicon<Double> inputs, @Positive double bias) {
 		// Check the inputs argument
 		if (inputs == null)
 			throw new NullPointerException("The argument cannot be null.");
@@ -142,15 +177,10 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 			throw new IllegalArgumentException("The number of inputs must be equals of the number of weights minus one. (number of inputs: \"" + getInputs().size() + "\" ; number of weights: \"" + getWeights() + "\" ; number of expected inputs: \"" + (getWeights().size() - 1) + "\").");
 		
 		// Check the inputs arguments
-		for (Double input : inputs) {
-			if (input == null)
-				throw new NullPointerException("One of the input is invalid.");
-			else if (input < 0)
-				throw new IllegalArgumentException("One of the argument is less than zero.");
-		}
+		inputs.deleteNullElement();
 		
 		// Compute the sum of all inputs according to their weight
-		double outputBeforeActivation = 0.0d;
+		double outputBeforeActivation = 0.0;
 		
 		for (int i = 0; i < inputs.size(); i++)
 			outputBeforeActivation += inputs.get(i) * getWeights().get(i);
@@ -160,7 +190,7 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 		
 		return outputBeforeActivation;
 	}
-	public double sum(@NotNull ArrayList<Double> inputs) {
+	public double sum(@NotNull Lexicon<Double> inputs) {
 		return sum(inputs, getBias());
 	}
 	public double sum(@Positive double bias) {
@@ -170,10 +200,10 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 		return sum(getInputs(), getBias());
 	}
 	
-	public double activate(@NotNull ArrayList<Double> inputs, @Positive double bias) {
+	public double activate(@NotNull Lexicon<Double> inputs, @Positive double bias) {
 		return getActivationHandler().activate(sum(inputs, bias));
 	}
-	public double activate(@NotNull ArrayList<Double> inputs) {
+	public double activate(@NotNull Lexicon<Double> inputs) {
 		return activate(inputs, getBias());
 	}
 	public double activate(@Positive double bias) {
@@ -183,18 +213,35 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 		return activate(getInputs(), getBias());
 	}
 	
+	public double fire(double activationResult) {
+		for (Ref<Neuron> neuronRef : getSynapses()) {
+			if (neuronRef != null && neuronRef.getElement() != null) {
+				neuronRef.getElement().getInputs().add(activationResult);
+				neuronRef.getElement().fire();
+			}
+		}
+		
+		return activationResult;
+	}
+	public double fire() {
+		double activationResult = activate();
+		fire(activationResult);
+		
+		return activationResult;
+	}
+	
 	/* GETTERS & SETTERS */
 	
+	@SuppressWarnings("ConstantConditions")
 	@NotNull
 	public UUID getId() {
-		if (id == null) {
-			id = UUID.randomUUID();
-			snap(id);
-		}
+		if (id == null)
+			initId();
 		
 		return id;
 	}
 	
+	@SuppressWarnings("ConstantConditions")
 	public void setId(@NotNull UUID id) {
 		if (id == null)
 			throw new NullPointerException();
@@ -203,83 +250,105 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 		snap(this.id);
 	}
 	
+	protected void initId() {
+		setId(UUID.randomUUID());
+	}
+	
+	@SuppressWarnings("ConstantConditions")
 	@NotNull
-	public ArrayList<Double> getInputs() {
-		if (inputs == null) {
-			inputs = new ArrayList<>();
-			snap(inputs);
-		}
+	public Lexicon<Double> getInputs() {
+		if (inputs == null)
+			initInputs();
 		
 		return inputs;
 	}
-
-	public void setInputs(@NotNull ArrayList<Double> inputs) {
+	
+	@SuppressWarnings("ConstantConditions")
+	public void setInputs(@NotNull Lexicon<Double> inputs) {
 		if (inputs == null)
 			throw new NullPointerException();
 		
 		this.inputs = inputs;
-		snap(this.inputs);
+		configureInputs();
 	}
 	public void setInputs(double... inputs) {
-		ArrayList<Double> list = new ArrayList<>();
-		for (double input : inputs)
-			list.add(input);
-		
-		setInputs(list);
+		setInputs(new LexiconBuilder<>(Double.class)
+				.addAll(Arrays.stream(inputs).boxed().toArray(Double[]::new))
+				.createLexicon());
 	}
-
-	public ArrayList<Double> getWeights() {
-		if (weights == null) {
-			weights = new ArrayList<>();
-			snap(weights);
-		}
+	
+	protected void initInputs() {
+		setInputs(new Lexicon<>(Double.class));
+	}
+	
+	protected void configureInputs() {
+		getInputs().setAcceptNullValues(false);
+		//getWeights().setSynchronizedAccess(false);
+		snap(getInputs());
+	}
+	
+	@SuppressWarnings("ConstantConditions")
+	public Lexicon<Double> getWeights() {
+		if (weights == null)
+			initWeights();
 		
 		return weights;
 	}
-
-	public void setWeights(@NotNull ArrayList<Double> weights) {
+	
+	@SuppressWarnings("ConstantConditions")
+	public void setWeights(@NotNull Lexicon<Double> weights) {
 		if (weights == null)
 			throw new NullPointerException();
 		
 		this.weights = weights;
-		snap(this.weights);
+		configureWeights();
 	}
 	public void setWeights(double... weights) {
-		ArrayList<Double> list = new ArrayList<>();
-		for (double input : weights)
-			list.add(input);
-		
-		setWeights(list);
+		setWeights(new LexiconBuilder<>(Double.class)
+				.addAll(Arrays.stream(weights).boxed().toArray(Double[]::new))
+				.createLexicon());
+	}
+	
+	protected void initWeights() {
+		setWeights(new Lexicon<>(Double.class));
+	}
+	
+	protected void configureWeights() {
+		getWeights().setAcceptNullValues(false);
+		//getWeights().setSynchronizedAccess(false);
+		snap(getWeights());
 	}
 	
 	@Positive
 	public double getBias() {
-		if (bias < 0d) {
-			bias = 0d;
-			snap(bias);
-		}
+		if (bias < 0.0)
+			initBias();
 		
 		return bias;
 	}
 
 	public void setBias(@Positive double bias) {
-		if (bias < 0d)
+		if (bias < 0.0)
 			throw new IllegalArgumentException("bias must be greater than 0.");
 		
 		this.bias = bias;
 		snap(this.bias);
 	}
-
+	
+	protected void initBias() {
+		setBias(1.0);
+	}
+	
+	@SuppressWarnings("ConstantConditions")
 	@NotNull
 	public ActivationHandler getActivationHandler() {
-		if (activationHandler == null) {
-			activationHandler = outputBeforeActivation -> 0.0d;
-			snap(activationHandler);
-		}
+		if (activationHandler == null)
+			initActivationHandler();
 		
 		return activationHandler;
 	}
-
+	
+	@SuppressWarnings("ConstantConditions")
 	public void setActivationHandler(@NotNull ActivationHandler activationHandler) {
 		if (activationHandler == null)
 			throw new NullPointerException();
@@ -287,7 +356,43 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 		this.activationHandler = activationHandler;
 		snap(this.activationHandler);
 	}
-
+	
+	protected void initActivationHandler() {
+		setActivationHandler(outputBeforeActivation -> 0.0);
+	}
+	
+	@SuppressWarnings("ConstantConditions")
+	@NotNull
+	public Lexicon<Ref<Neuron>> getSynapses() {
+		if (synapses == null)
+			initSynapses();
+		
+		return synapses;
+	}
+	
+	@SuppressWarnings("ConstantConditions")
+	public void setSynapses(@NotNull Lexicon<Ref<Neuron>> synapses) {
+		if (synapses == null)
+			throw new NullPointerException();
+		
+		this.synapses = synapses;
+		configureWeights();
+	}
+	@SuppressWarnings("unchecked")
+	public void setSynapses(@NotNull Ref<Neuron>... synapses) {
+		setSynapses(new Lexicon<>(synapses));
+	}
+	
+	protected void initSynapses() {
+		setSynapses(new Lexicon<>());
+	}
+	
+	protected void configureSynapses() {
+		getSynapses().setAcceptDuplicates(true);
+		getSynapses().setAcceptNullValues(false);
+		snap(getSynapses());
+	}
+	
 	/* SERIALIZATION METHODS */
 	
 	private void writeObject(@NotNull ObjectOutputStream stream) throws IOException {
@@ -296,15 +401,17 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 		stream.writeObject(getWeights());
 		stream.writeDouble(getBias());
 		stream.writeObject(getActivationHandler());
+		stream.writeObject(getSynapses());
 	}
 	
 	@SuppressWarnings("unchecked")
 	private void readObject(@NotNull ObjectInputStream stream) throws IOException, ClassNotFoundException {
 		setId((UUID) stream.readObject());
-		setInputs((ArrayList<Double>) stream.readObject());
-		setWeights((ArrayList<Double>) stream.readObject());
+		setInputs((Lexicon<Double>) stream.readObject());
+		setWeights((Lexicon<Double>) stream.readObject());
 		setBias(stream.readDouble());
 		setActivationHandler((ActivationHandler) stream.readObject());
+		setSynapses((Lexicon<Ref<Neuron>>) stream.readObject());
 	}
 	
 	/* OVERRIDES */
@@ -318,12 +425,13 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 				Objects.equals(getId(), neuron.getId()) &&
 				Objects.equals(getInputs(), neuron.getInputs()) &&
 				Objects.equals(getWeights(), neuron.getWeights()) &&
-				Objects.equals(getActivationHandler(), neuron.getActivationHandler());
+				Objects.equals(getActivationHandler(), neuron.getActivationHandler()) &&
+				Objects.equals(getSynapses(), neuron.getSynapses());
 	}
 	
 	@Override
 	public int hashCode() {
-		return Objects.hash(getId(), getInputs(), getWeights(), getBias(), getActivationHandler());
+		return Objects.hash(getId(), getInputs(), getWeights(), getBias(), getActivationHandler(), getSynapses());
 	}
 	
 	@Override
@@ -334,6 +442,7 @@ public class Neuron extends EnhancedObservable implements Serializable, Cloneabl
 				", weights=" + weights +
 				", bias=" + bias +
 				", activationHandler=" + activationHandler +
+				", synapses=" + synapses +
 				'}';
 	}
 }

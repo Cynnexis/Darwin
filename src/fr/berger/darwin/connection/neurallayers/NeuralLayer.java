@@ -1,17 +1,24 @@
 package fr.berger.darwin.connection.neurallayers;
 
+import com.sun.org.glassfish.gmbal.ParameterNames;
+import fr.berger.arrow.Ref;
 import fr.berger.beyondcode.annotations.Positive;
 import fr.berger.beyondcode.util.EnhancedObservable;
 import fr.berger.darwin.connection.Neuron;
+import fr.berger.darwin.connection.Triggerable;
 import fr.berger.darwin.connection.handlers.ActivationHandler;
 import fr.berger.enhancedlist.lexicon.Lexicon;
 import fr.berger.enhancedlist.lexicon.eventhandlers.AddHandler;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.*;
 
-public class NeuralLayer extends EnhancedObservable implements Serializable, Cloneable {
+public class NeuralLayer extends EnhancedObservable implements Triggerable, Serializable, Cloneable {
 	
 	/* PROPERTY */
 	
@@ -20,80 +27,45 @@ public class NeuralLayer extends EnhancedObservable implements Serializable, Clo
 	
 	/* CONSTRUCTORS & INITIALIZING METHODS */
 	
-	public NeuralLayer(@Positive int defaultNumberOfNeurons, @Positive int defaultNumberOfInputs, @NotNull ActivationHandler defaultActivationHandler) {
-		initialize(defaultNumberOfNeurons, defaultNumberOfInputs, defaultActivationHandler);
-	}
-	public NeuralLayer(@Positive int defaultNumberOfNeurons, @NotNull ActivationHandler defaultActivationHandler) {
-		initialize(defaultNumberOfNeurons, 0, defaultActivationHandler);
-	}
-	public NeuralLayer(@Positive int defaultNumberOfNeurons, @Positive int defaultNumberOfInputs) {
-		initialize(defaultNumberOfNeurons, defaultNumberOfInputs, outputBeforeActivation -> 0.0);
-	}
-	public NeuralLayer(@Positive int defaultNumberOfNeurons) {
-		initialize(defaultNumberOfNeurons, 0, outputBeforeActivation -> 0.0);
+	public NeuralLayer(@NotNull Lexicon<Neuron> neurons) {
+		super();
+		initialize(neurons);
 	}
 	public NeuralLayer(@NotNull Collection<Neuron> neurons) {
-		initializeLexicon(neurons.size());
-		
-		for (Neuron neuron : neurons) {
-			if (neuron != null)
-				getNeurons().add(neuron);
-		}
+		super();
+		initialize(new Lexicon<>(neurons));
 	}
 	public NeuralLayer(@NotNull Neuron... neurons) {
-		this(Arrays.asList(neurons));
+		super();
+		initialize(new Lexicon<>(neurons));
 	}
 	public NeuralLayer() {
 		super();
-		initialize(0, 0, outputBeforeActivation -> 0.0);
+		initialize(null);
 	}
 	
-	protected void initialize(int defaultNumberOfNeurons, @Positive int defaultNumberOfInputs, @NotNull ActivationHandler defaultActivationHandler) {
-		if (defaultNumberOfNeurons < 0)
-			defaultNumberOfNeurons = 0;
-		
-		initializeLexicon(defaultNumberOfNeurons);
-		
-		for (int i = 0; i < defaultNumberOfNeurons; i++) {
-			Neuron neuron = new Neuron(defaultNumberOfInputs, defaultActivationHandler);
-			try {
-				getNeurons().set(i, neuron);
-			} catch (IndexOutOfBoundsException ignored) {
-				getNeurons().add(neuron);
-			}
-		}
-	}
-	
-	protected void initializeLexicon(@Positive int defaultNumberOfNeurons) {
-		setNeurons(new Lexicon<>(Neuron.class, defaultNumberOfNeurons));
-		getNeurons().setAcceptNullValues(false);
-		getNeurons().addAddHandler(new AddHandler<Neuron>() {
-			@Override
-			public void onElementAdded(int index, Neuron neuron) {
-				for (int i = 0; i < getNeurons().size(); i++) {
-					if (index != i && getNeurons().get(i).getId().equals(neuron.getId()))
-						throw new IllegalArgumentException("Two neurons cannot have the same ID (Neuron n°" + index + "\": " + neuron.toString()  + "\" ; Neuron n°" + i + ": \"" + getNeurons().get(i) + "\").");
-				}
-			}
-		});
-		getNeurons().addObserver((observable, o) -> snap(o));
-	}
-	protected void initializeLexicon() {
-		initializeLexicon(0);
+	protected void initialize(@Nullable Lexicon<Neuron> neurons) {
+		if (neurons == null)
+			initNeurons();
+		else
+			setNeurons(neurons);
 	}
 	
 	/* NEURONAL LAYER METHODS */
 	
-	public ArrayList<Double> activate(@NotNull ArrayList<Double> inputsForNeurons) {
-		ArrayList<Double> outputs = new ArrayList<>(getNeurons().size());
+	public Lexicon<Double> activate(@NotNull Lexicon<Double> inputsForNeurons) {
+		Lexicon<Double> outputs = new Lexicon<>(Double.class, getNeurons().size());
 		
 		for (Neuron neuron : getNeurons())
 			outputs.add(neuron.activate(inputsForNeurons));
 		
 		return outputs;
 	}
-	public ArrayList<Double> activate() {
-		ArrayList<Double> outputs = new ArrayList<>(getNeurons().size());
+	public Lexicon<Double> activate(@NotNull double... inputsForNeurons) {
+		return activate(new Lexicon<>(Arrays.stream(inputsForNeurons).boxed().toArray(Double[]::new)));
+	}
+	public Lexicon<Double> activate() {
+		Lexicon<Double> outputs = new Lexicon<>(Double.class, getNeurons().size());
 		
 		for (Neuron neuron : getNeurons())
 			outputs.add(neuron.activate());
@@ -101,20 +73,84 @@ public class NeuralLayer extends EnhancedObservable implements Serializable, Clo
 		return outputs;
 	}
 	
+	public double fire() {
+		double activationResult = 0;
+		for (Neuron neuron : getNeurons())
+			activationResult += neuron.fire();
+		
+		return activationResult;
+	}
+	
 	/* GETTER & SETTER */
 	
+	@SuppressWarnings("ConstantConditions")
 	@NotNull
 	public Lexicon<Neuron> getNeurons() {
 		if (neurons == null)
-			neurons = new Lexicon<>(Neuron.class);
+			initNeurons();
 		
 		return neurons;
 	}
 	
+	@SuppressWarnings("ConstantConditions")
 	public void setNeurons(@NotNull Lexicon<Neuron> neurons) {
 		if (neurons == null)
 			throw new NullPointerException();
 		
 		this.neurons = neurons;
+		configureNeurons();
+	}
+	
+	public void initNeurons() {
+		setNeurons(new Lexicon<>(Neuron.class));
+	}
+	
+	@SuppressWarnings("ConstantConditions")
+	public void configureNeurons() {
+		getNeurons().setAcceptNullValues(false);
+		//getNeurons().setAcceptDuplicates(false);
+		//getNeurons().setSynchronizedAccess(false);
+		getNeurons().addAddHandler((index, neuron) -> {
+			for (int i = 0; i < getNeurons().size(); i++) {
+				if (index != i && getNeurons().get(i).getId().equals(neuron.getId()))
+					throw new IllegalArgumentException("Two neurons cannot have the same ID (Neuron n°" + index + "\": " + neuron.toString()  + "\" ; Neuron n°" + i + ": \"" + getNeurons().get(i) + "\").");
+			}
+		});
+		getNeurons().addSetHandler(((index, element) -> getNeurons().getAddHandlers().get(0).onElementAdded(index, element)));
+		getNeurons().addObserver((observable, o) -> snap(o));
+		snap(getNeurons());
+	}
+	
+	/* SERIALIZATION METHODS */
+	
+	private void writeObject(@NotNull ObjectOutputStream stream) throws IOException {
+		stream.writeObject(getNeurons());
+	}
+	
+	@SuppressWarnings("unchecked")
+	private void readObject(@NotNull ObjectInputStream stream) throws IOException, ClassNotFoundException {
+		setNeurons((Lexicon<Neuron>) stream.readObject());
+	}
+	
+	/* OVERRIDES */
+	
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (!(o instanceof NeuralLayer)) return false;
+		NeuralLayer that = (NeuralLayer) o;
+		return Objects.equals(getNeurons(), that.getNeurons());
+	}
+	
+	@Override
+	public int hashCode() {
+		return Objects.hash(getNeurons());
+	}
+	
+	@Override
+	public String toString() {
+		return "NeuralLayer{" +
+				"neurons=" + neurons +
+				'}';
 	}
 }

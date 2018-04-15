@@ -24,7 +24,7 @@ class PopulationTest {
 	
 	@BeforeEach
 	void setup() {
-		population = new Population<>(new ArrayList<>(), size, maxGeneration, 0.2f, 0.03f, 0.8f, new Mutable<String>() {
+		population = new Population<>(new ArrayList<>(), size, 0.2f, 0.03f, 0.8f, new Mutable<String>() {
 			
 			@Override
 			public double calculateFitness(@NotNull Individual<String> individual) {
