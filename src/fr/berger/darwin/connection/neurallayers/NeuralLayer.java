@@ -1,14 +1,10 @@
 package fr.berger.darwin.connection.neurallayers;
 
-import com.sun.org.glassfish.gmbal.ParameterNames;
 import fr.berger.arrow.Ref;
-import fr.berger.beyondcode.annotations.Positive;
 import fr.berger.beyondcode.util.EnhancedObservable;
 import fr.berger.darwin.connection.Neuron;
-import fr.berger.darwin.connection.Triggerable;
-import fr.berger.darwin.connection.handlers.ActivationHandler;
+import fr.berger.enhancedlist.Couple;
 import fr.berger.enhancedlist.lexicon.Lexicon;
-import fr.berger.enhancedlist.lexicon.eventhandlers.AddHandler;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -16,9 +12,12 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Objects;
 
-public class NeuralLayer extends EnhancedObservable implements Triggerable, Serializable, Cloneable {
+public class NeuralLayer extends EnhancedObservable implements Serializable, Cloneable, Iterable<Neuron> {
 	
 	/* PROPERTY */
 	
@@ -53,32 +52,17 @@ public class NeuralLayer extends EnhancedObservable implements Triggerable, Seri
 	
 	/* NEURONAL LAYER METHODS */
 	
-	public Lexicon<Double> activate(@NotNull Lexicon<Double> inputsForNeurons) {
-		Lexicon<Double> outputs = new Lexicon<>(Double.class, getNeurons().size());
+	public Lexicon<Couple<Double, Ref<Neuron>>> activate() {
+		Lexicon<Couple<Double, Ref<Neuron>>> dendrites = new Lexicon<>();
 		
-		for (Neuron neuron : getNeurons())
-			outputs.add(neuron.activate(inputsForNeurons));
+		for (Neuron neuron : getNeurons()) {
+			double activationResult = neuron.activate();
+			
+			for (Ref<Neuron> synapse : neuron.getSynapses())
+				dendrites.add(new Couple<>(activationResult, synapse));
+		}
 		
-		return outputs;
-	}
-	public Lexicon<Double> activate(@NotNull double... inputsForNeurons) {
-		return activate(new Lexicon<>(Arrays.stream(inputsForNeurons).boxed().toArray(Double[]::new)));
-	}
-	public Lexicon<Double> activate() {
-		Lexicon<Double> outputs = new Lexicon<>(Double.class, getNeurons().size());
-		
-		for (Neuron neuron : getNeurons())
-			outputs.add(neuron.activate());
-		
-		return outputs;
-	}
-	
-	public double fire() {
-		double activationResult = 0;
-		for (Neuron neuron : getNeurons())
-			activationResult += neuron.fire();
-		
-		return activationResult;
+		return dendrites;
 	}
 	
 	/* GETTER & SETTER */
@@ -108,8 +92,6 @@ public class NeuralLayer extends EnhancedObservable implements Triggerable, Seri
 	@SuppressWarnings("ConstantConditions")
 	public void configureNeurons() {
 		getNeurons().setAcceptNullValues(false);
-		//getNeurons().setAcceptDuplicates(false);
-		//getNeurons().setSynchronizedAccess(false);
 		getNeurons().addAddHandler((index, neuron) -> {
 			for (int i = 0; i < getNeurons().size(); i++) {
 				if (index != i && getNeurons().get(i).getId().equals(neuron.getId()))
@@ -133,6 +115,12 @@ public class NeuralLayer extends EnhancedObservable implements Triggerable, Seri
 	}
 	
 	/* OVERRIDES */
+	
+	@NotNull
+	@Override
+	public Iterator iterator() {
+		return getNeurons().iterator();
+	}
 	
 	@Override
 	public boolean equals(Object o) {

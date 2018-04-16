@@ -18,7 +18,7 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.UUID;
 
-public class Neuron extends EnhancedObservable implements Triggerable, Serializable, Cloneable {
+public class Neuron extends EnhancedObservable implements Serializable, Cloneable {
 	
 	/* PROPERTIES */
 	
@@ -174,7 +174,7 @@ public class Neuron extends EnhancedObservable implements Triggerable, Serializa
 		
 		// Check if the number of inputs is valid according to the weights
 		if (inputs.size() + 1 != getWeights().size())
-			throw new IllegalArgumentException("The number of inputs must be equals of the number of weights minus one. (number of inputs: \"" + getInputs().size() + "\" ; number of weights: \"" + getWeights() + "\" ; number of expected inputs: \"" + (getWeights().size() - 1) + "\").");
+			throw new IllegalArgumentException("The number of inputs must be equals to the number of weights minus one. (number of inputs: \"" + getInputs().size() + "\" ; number of weights: \"" + getWeights().size() + "\" ; number of expected inputs: \"" + (getWeights().size() - 1) + "\").");
 		
 		// Check the inputs arguments
 		inputs.deleteNullElement();
@@ -211,23 +211,6 @@ public class Neuron extends EnhancedObservable implements Triggerable, Serializa
 	}
 	public double activate() {
 		return activate(getInputs(), getBias());
-	}
-	
-	public double fire(double activationResult) {
-		for (Ref<Neuron> neuronRef : getSynapses()) {
-			if (neuronRef != null && neuronRef.getElement() != null) {
-				neuronRef.getElement().getInputs().add(activationResult);
-				neuronRef.getElement().fire();
-			}
-		}
-		
-		return activationResult;
-	}
-	public double fire() {
-		double activationResult = activate();
-		fire(activationResult);
-		
-		return activationResult;
 	}
 	
 	/* GETTERS & SETTERS */

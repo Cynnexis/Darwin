@@ -1,12 +1,9 @@
 package fr.berger.darwin.connection.neurallayers;
 
 import fr.berger.arrow.Ref;
-import fr.berger.beyondcode.annotations.Positive;
 import fr.berger.darwin.connection.Neuron;
-import fr.berger.darwin.connection.Triggerable;
 import fr.berger.enhancedlist.Couple;
 import fr.berger.enhancedlist.lexicon.Lexicon;
-import fr.berger.enhancedlist.lexicon.eventhandlers.AddHandler;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -14,13 +11,11 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import java.lang.invoke.LambdaConversionException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Objects;
 
-public class InputLayer extends NeuralLayer implements Triggerable, Serializable, Cloneable {
+public class InputLayer extends NeuralLayer implements Serializable, Cloneable, Iterable<Neuron> {
 	
 	@NotNull
 	private Lexicon<Couple<Double, Ref<Neuron>>> dendrites;
@@ -56,50 +51,8 @@ public class InputLayer extends NeuralLayer implements Triggerable, Serializable
 	/* NEURONAL LAYER METHODS */
 	
 	@Override
-	public Lexicon<Double> activate(@NotNull Lexicon<Double> inputsForNeurons) {
-		return activate_content(inputsForNeurons);
-	}
-	@Override
-	public Lexicon<Double> activate(@NotNull double... inputsForNeurons) {
-		return activate_content(new Lexicon<>(Arrays.stream(inputsForNeurons).boxed().toArray(Double[]::new)));
-	}
-	@Override
-	public Lexicon<Double> activate() {
-		return activate_content(null);
-	}
-	
-	private Lexicon<Double> activate_content(@Nullable Lexicon<Double> inputsForNeurons) {
-		if (getNeurons().size() != 0) {
-			if (inputsForNeurons == null)
-				return super.activate();
-			else
-				return super.activate(inputsForNeurons);
-		}
-		else {
-			Lexicon<Double> inputs = new Lexicon<>(Double.class);
-			
-			for (Couple<Double,Ref<Neuron>> dendrite : getDendrites())
-				inputs.add(dendrite.getX());
-			
-			return inputs;
-		}
-	}
-	
-	@Override
-	public double fire() {
-		double activationResult = 0;
-		
-		// Add the inputs for all neurons
-		for (Couple<Double, Ref<Neuron>> dendrite : getDendrites()) {
-			dendrite.getY().getElement().getInputs().add(dendrite.getX());
-		}
-		
-		// Fire every neurons
-		for (Couple<Double, Ref<Neuron>> dendrite : getDendrites()) {
-			activationResult += dendrite.getY().getElement().fire();
-		}
-		
-		return activationResult;
+	public Lexicon<Couple<Double, Ref<Neuron>>> activate() {
+		return getDendrites();
 	}
 	
 	/* GETTERS & SETTERS */

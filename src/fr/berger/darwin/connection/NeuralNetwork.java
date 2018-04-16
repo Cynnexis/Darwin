@@ -1,9 +1,13 @@
 package fr.berger.darwin.connection;
 
+import fr.berger.arrow.Ref;
 import fr.berger.beyondcode.util.EnhancedObservable;
 import fr.berger.darwin.connection.neurallayers.HiddenLayer;
 import fr.berger.darwin.connection.neurallayers.InputLayer;
+import fr.berger.darwin.connection.neurallayers.NeuralLayer;
 import fr.berger.darwin.connection.neurallayers.OutputLayer;
+import fr.berger.enhancedlist.Couple;
+import fr.berger.enhancedlist.ListUtil;
 import fr.berger.enhancedlist.lexicon.Lexicon;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -15,7 +19,7 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.Objects;
 
-public class NeuralNetwork extends EnhancedObservable implements Triggerable, Serializable, Cloneable {
+public class NeuralNetwork extends EnhancedObservable implements Serializable, Cloneable {
 	
 	/* PROPERTIES */
 	
@@ -78,10 +82,44 @@ public class NeuralNetwork extends EnhancedObservable implements Triggerable, Se
 		return neurons;
 	}
 	
-	@Override
-	public double fire() {
-		// TODO: Fire the whole network (fireworks!)
-		return getInputLayer().fire();
+	public Lexicon<Double> activate() {
+		Lexicon<Couple<Double, Ref<Neuron>>> synapses;
+		
+		NeuralLayer currentLayer = getInputLayer();
+		
+		NeuralLayer nextLayer = null;
+		int indexHiddenLayer = 0;
+		
+		while (!Objects.equals(nextLayer, getOutputLayer())) {
+			if (!getHiddenLayers().isEmpty() && ListUtil.checkIndex(indexHiddenLayer, getHiddenLayers()))
+				nextLayer = getHiddenLayers().get(indexHiddenLayer);
+			else
+				nextLayer = getOutputLayer();
+			
+			if (nextLayer == null)
+				throw new NullPointerException();
+			
+			synapses = currentLayer.activate();
+			
+			// Feed the next neurons
+			for (Couple<Double, Ref<Neuron>> synapse : synapses)
+				if (synapse.getY() != null && synapse.getY().getElement() != null && nextLayer.getNeurons().contains(synapse.getY().getElement()))
+					synapse.getY().getElement().getInputs().add(synapse.getX());
+			
+			// Activate the next layer
+			currentLayer = nextLayer;
+			indexHiddenLayer++;
+		}
+		
+		// Now, currentLayer == getOutputLayer()
+		synapses = currentLayer.activate();
+		
+		Lexicon<Double> output = new Lexicon<>(Double.class);
+		
+		for (Couple<Double, Ref<Neuron>> synapse : synapses)
+			output.add(synapse.getX());
+		
+		return output;
 	}
 	
 	/* GETTERS & SETTERS */
@@ -189,12 +227,72 @@ public class NeuralNetwork extends EnhancedObservable implements Triggerable, Se
 		return Objects.hash(getInputLayer(), getHiddenLayers(), getOutputLayer());
 	}
 	
+	@SuppressWarnings("ConstantConditions")
 	@Override
 	public String toString() {
-		return "NeuralNetwork{" +
-				"inputLayer=" + inputLayer +
-				", hiddenLayers=" + hiddenLayers +
-				", outputLayer=" + outputLayer +
-				'}';
+		StringBuilder builder = new StringBuilder("--- Neural Network ---\n");
+		
+		builder.append("Input Layer:\n");
+		for (Neuron neuron : getInputLayer()) {
+			if (neuron != null) {
+				builder.append("\t")
+						.append(neuron.toString())
+						.append("\n");
+			}
+		}
+		for (Couple<Double,Ref<Neuron>> synapse : getInputLayer().getDendrites()) {
+			if (synapse != null && synapse.getX() != null && synapse.getY() != null) {
+				builder.append("Synapse{")
+						.append("value=")
+						.append(synapse.getX())
+						.append(" --> ")
+						.append("Neuron{id=")
+						.append(synapse.getY().getElement().getId())
+						.append("}}")
+						.append('\n');
+			}
+		}
+		
+		if (!getHiddenLayers().isEmpty()) {
+			for (int i = 0, maxi = getHiddenLayers().size(); i < maxi; i++) {
+				if (getHiddenLayers().get(i) != null) {
+					// Draw line
+					for (int j = 0; j < 10; j++)
+						builder.append('-');
+					
+					builder.append('\n');
+					
+					builder.append("Hidden Layer number ")
+							.append(i + 1)
+							.append(':')
+							.append('\n');
+					
+					for (Neuron neuron : getHiddenLayers().get(i)) {
+						if (neuron != null) {
+							builder.append("\t")
+									.append(neuron.toString())
+									.append("\n");
+						}
+					}
+				}
+			}
+		}
+		
+		// Draw line
+		for (int j = 0; j < 10; j++)
+			builder.append('-');
+		
+		builder.append('\n');
+		
+		builder.append("Output Layer:\n");
+		for (Neuron neuron : getOutputLayer()) {
+			if (neuron != null) {
+				builder.append("\t")
+						.append(neuron.toString())
+						.append("\n");
+			}
+		}
+		
+		return builder.toString();
 	}
 }

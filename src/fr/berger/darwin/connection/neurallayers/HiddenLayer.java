@@ -1,9 +1,6 @@
 package fr.berger.darwin.connection.neurallayers;
 
-import fr.berger.arrow.Ref;
 import fr.berger.darwin.connection.Neuron;
-import fr.berger.darwin.connection.Triggerable;
-import fr.berger.enhancedlist.Couple;
 import fr.berger.enhancedlist.lexicon.Lexicon;
 import org.jetbrains.annotations.NotNull;
 
@@ -13,7 +10,7 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.Collection;
 
-public class HiddenLayer extends NeuralLayer implements Triggerable, Serializable, Cloneable {
+public class HiddenLayer extends NeuralLayer implements Serializable, Cloneable, Iterable<Neuron> {
 	
 	public HiddenLayer(@NotNull Lexicon<Neuron> neurons) {
 		super(neurons);
